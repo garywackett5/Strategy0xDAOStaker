@@ -14,7 +14,10 @@ def test_simple_harvest(
     chain,
     strategist_ms,
     amount,
-    accounts
+    accounts,
+    masterchef,
+    reward_token,
+    pid,
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
@@ -35,11 +38,16 @@ def test_simple_harvest(
     # simulate 12 hours of earnings
     chain.sleep(43200)
     chain.mine(1)
+    
+    # check on our pending rewards
+    pending = masterchef.pendingOXD(pid, strategy, {"from": whale})
+    print("This is our pending reward after 12 hours: $" + str(pending/1e18))
 
-    # harvest, store new asset amount
+    # harvest, store new asset amount. Turn off health check since we are only ones in this pool.
     chain.sleep(1)
-    strategy.harvest({"from": gov})
+    tx = strategy.harvest({"from": gov})
     chain.sleep(1)
+    
     new_assets = vault.totalAssets()
     # confirm we made money, or at least that we have about the same
     assert new_assets >= old_assets
@@ -48,34 +56,6 @@ def test_simple_harvest(
     # Display estimated APR
     print(
         "\nEstimated APR: ",
-        "{:.2%}".format(
-            ((new_assets - old_assets) * (365 * 2)) / (strategy.estimatedTotalAssets())
-        ),
-    )
-    
-    # transfer 1000 BOO from our other whale to the xBOO contract
-    print("Total Estimated Assets before donation:", strategy.estimatedTotalAssets()/1e18)
-    whale_2 = accounts.at("0xE0c15e9Fe90d56472D8a43da5D3eF34ae955583C", force=True)
-    xboo = Contract("0xa48d959AE2E88f1dAA7D5F611E01908106dE7598")
-    token.transfer(xboo.address, 1000e18, {"from": whale_2})
-    print("Total Estimated Assets After Donation:", strategy.estimatedTotalAssets()/1e18)
-
-    # simulate 12 hours of earnings
-    chain.mine(1)
-    chain.sleep(43200)
-
-    # harvest, store new asset amount
-    chain.sleep(1)
-    tx = strategy.harvest({"from": gov})
-    chain.sleep(1)
-    new_assets = vault.totalAssets()
-    # confirm we made money, or at least that we have about the same
-    assert new_assets >= old_assets
-    print("\nVault total assets after next harvest: ", new_assets / 1e18)
-
-    # Display estimated APR
-    print(
-        "\nEstimated APR with fake xBOO yield: ",
         "{:.2%}".format(
             ((new_assets - old_assets) * (365 * 2)) / (strategy.estimatedTotalAssets())
         ),

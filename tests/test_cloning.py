@@ -12,10 +12,11 @@ def test_cloning(
     keeper,
     rewards,
     chain,
-    StrategyBooStaker,
+    Strategy0xDAOStaker,
     guardian,
     amount,
     pid,
+    masterchef,
     strategy_name,
 ):
     # Shouldn't be able to call initialize again
@@ -25,22 +26,24 @@ def test_cloning(
             strategist,
             rewards,
             keeper,
+            masterchef,
             pid,
             strategy_name,
             {"from": gov},
         )
 
     ## clone our strategy
-    tx = strategy.cloneBooStaker(
+    tx = strategy.clone0xDAOStaker(
         vault,
         strategist,
         rewards,
         keeper,
+        masterchef,
         pid,
         strategy_name,
         {"from": gov},
     )
-    newStrategy = StrategyBooStaker.at(tx.return_value)
+    newStrategy = Strategy0xDAOStaker.at(tx.return_value)
 
     # Shouldn't be able to call initialize again
     with brownie.reverts():
@@ -49,6 +52,7 @@ def test_cloning(
             strategist,
             rewards,
             keeper,
+            masterchef,
             pid,
             strategy_name,
             {"from": gov},
@@ -56,11 +60,12 @@ def test_cloning(
 
     ## shouldn't be able to clone a clone
     with brownie.reverts():
-        newStrategy.cloneBooStaker(
+        newStrategy.clone0xDAOStaker(
             vault,
             strategist,
             rewards,
             keeper,
+            masterchef,
             pid,
             strategy_name,
             {"from": gov},

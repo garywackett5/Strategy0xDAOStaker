@@ -67,7 +67,7 @@ def test_setters(
     chain.mine(1)
 
     zero = "0x0000000000000000000000000000000000000000"
-    
+
     with brownie.reverts():
         strategy.setKeeper(zero, {"from": gov})
     with brownie.reverts():

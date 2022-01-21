@@ -58,7 +58,7 @@ def test_triggers(
     # allow share price to rise
     chain.sleep(43200)
     chain.mine(1)
-    
+
     vault.withdraw({"from": whale})
     assert token.balanceOf(whale) >= startingWhale
 

@@ -14,7 +14,8 @@ def test_odds_and_ends(
     chain,
     strategist_ms,
     pid,
-    StrategyBooStaker,
+    masterchef,
+    Strategy0xDAOStaker,
     amount,
     strategy_name,
 ):
@@ -29,13 +30,10 @@ def test_odds_and_ends(
     chain.sleep(1)
 
     # send away all funds, will need to alter this based on strategy
-    masterchef = Contract("0x2352b745561e7e6FCD03c093cE7220e3e126ace0")
-    strategy_staked = strategy.xbooStakedInMasterchef()
-    masterchef.withdraw(pid, strategy_staked, {"from": strategy})
-    xboo = Contract("0xa48d959AE2E88f1dAA7D5F611E01908106dE7598")
-    to_send = xboo.balanceOf(strategy)
-    print("xBoo Balance of Vault", to_send)
-    xboo.transfer(gov, to_send, {"from": strategy})
+    strategy.emergencyWithdraw({"from": gov})
+    to_send = token.balanceOf(strategy)
+    print("Balance of Vault", to_send)
+    token.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
 
     chain.sleep(86400 * 4)  # fast forward so our min delay is passed
@@ -52,8 +50,9 @@ def test_odds_and_ends(
     # we can try to migrate too, lol
     # deploy our new strategy
     new_strategy = strategist.deploy(
-        StrategyBooStaker,
+        Strategy0xDAOStaker,
         vault,
+        masterchef,
         pid,
         strategy_name,
     )
@@ -125,15 +124,12 @@ def test_odds_and_ends_2(
     chain.sleep(1)
 
     # send away all funds, will need to alter this based on strategy
-    masterchef = Contract("0x2352b745561e7e6FCD03c093cE7220e3e126ace0")
-    strategy_staked = strategy.xbooStakedInMasterchef()
-    masterchef.withdraw(pid, strategy_staked, {"from": strategy})
-    xboo = Contract("0xa48d959AE2E88f1dAA7D5F611E01908106dE7598")
-    to_send = xboo.balanceOf(strategy)
-    print("xBoo Balance of Vault", to_send)
-    xboo.transfer(gov, to_send, {"from": strategy})
+    strategy.emergencyWithdraw({"from": gov})
+    to_send = token.balanceOf(strategy)
+    print("Balance of Vault", to_send)
+    token.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
-    
+
     strategy.setEmergencyExit({"from": gov})
 
     chain.sleep(1)
@@ -146,7 +142,7 @@ def test_odds_and_ends_2(
 
 
 def test_odds_and_ends_migration(
-    StrategyBooStaker,
+    Strategy0xDAOStaker,
     gov,
     token,
     vault,
@@ -158,6 +154,7 @@ def test_odds_and_ends_migration(
     strategist_ms,
     amount,
     strategy_name,
+    masterchef,
     pid,
 ):
 
@@ -170,8 +167,9 @@ def test_odds_and_ends_migration(
 
     # deploy our new strategy
     new_strategy = strategist.deploy(
-        StrategyBooStaker,
+        Strategy0xDAOStaker,
         vault,
+        masterchef,
         pid,
         strategy_name,
     )
@@ -302,13 +300,10 @@ def test_odds_and_ends_rekt(
     chain.sleep(1)
 
     # send away all funds, will need to alter this based on strategy
-    masterchef = Contract("0x2352b745561e7e6FCD03c093cE7220e3e126ace0")
-    strategy_staked = strategy.xbooStakedInMasterchef()
-    masterchef.withdraw(pid, strategy_staked, {"from": strategy})
-    xboo = Contract("0xa48d959AE2E88f1dAA7D5F611E01908106dE7598")
-    to_send = xboo.balanceOf(strategy)
-    print("xBoo Balance of Vault", to_send)
-    xboo.transfer(gov, to_send, {"from": strategy})
+    strategy.emergencyWithdraw({"from": gov})
+    to_send = token.balanceOf(strategy)
+    print("Balance of Vault", to_send)
+    token.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
     assert vault.strategies(strategy)[2] == 10000
     print("Strategy Total Debt, this should be >0:", vault.strategies(strategy)[6])
@@ -346,13 +341,10 @@ def test_odds_and_ends_liquidate_rekt(
     chain.sleep(1)
 
     # send away all funds, will need to alter this based on strategy
-    masterchef = Contract("0x2352b745561e7e6FCD03c093cE7220e3e126ace0")
-    strategy_staked = strategy.xbooStakedInMasterchef()
-    masterchef.withdraw(pid, strategy_staked, {"from": strategy})
-    xboo = Contract("0xa48d959AE2E88f1dAA7D5F611E01908106dE7598")
-    to_send = xboo.balanceOf(strategy)
-    print("xBoo Balance of Vault", to_send)
-    xboo.transfer(gov, to_send, {"from": strategy})
+    strategy.emergencyWithdraw({"from": gov})
+    to_send = token.balanceOf(strategy)
+    print("Balance of Vault", to_send)
+    token.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
 
     # we can also withdraw from an empty vault as well, but make sure we're okay with losing 100%
