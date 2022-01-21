@@ -1,20 +1,20 @@
 import brownie
 from brownie import Contract
 from brownie import config
+import math
 
-# test passes as of 21-06-26
+
 def test_simple_harvest(
     gov,
     token,
     vault,
-    dudesahn,
     strategist,
     whale,
     strategy,
     chain,
     strategist_ms,
-    staking,
     amount,
+    accounts
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
@@ -26,40 +26,61 @@ def test_simple_harvest(
     chain.sleep(1)
     strategy.harvest({"from": gov})
     chain.sleep(1)
-    old_assets_dai = vault.totalAssets()
-    assert old_assets_dai > 0
+    old_assets = vault.totalAssets()
+    assert old_assets > 0
     assert token.balanceOf(strategy) == 0
     assert strategy.estimatedTotalAssets() > 0
-    assert staking.balanceOf(strategy, token) > 0
-    print("\nStarting Assets: ", old_assets_dai / 1e18)
-    print("\nAssets Staked: ", staking.balanceOf(strategy, token) / 1e18)
+    print("\nStarting vault total assets: ", old_assets / 1e18)
 
-    # simulate 9 days of earnings
-    chain.sleep(86400 * 9)
+    # simulate 12 hours of earnings
+    chain.sleep(43200)
     chain.mine(1)
 
-    # harvest after a day, store new asset amount
+    # harvest, store new asset amount
     chain.sleep(1)
     strategy.harvest({"from": gov})
     chain.sleep(1)
-    new_assets_dai = vault.totalAssets()
-    # we can't use strategyEstimated Assets because the profits are sent to the vault
-    assert new_assets_dai >= old_assets_dai
-    print("\nAssets after 2 days: ", new_assets_dai / 1e18)
+    new_assets = vault.totalAssets()
+    # confirm we made money, or at least that we have about the same
+    assert new_assets >= old_assets
+    print("\nVault total assets after 1 harvest: ", new_assets / 1e18)
 
     # Display estimated APR
     print(
-        "\nEstimated SUSHI APR: ",
+        "\nEstimated APR: ",
         "{:.2%}".format(
-            ((new_assets_dai - old_assets_dai) * (365 / 7))
-            / (strategy.estimatedTotalAssets())
+            ((new_assets - old_assets) * (365 * 2)) / (strategy.estimatedTotalAssets())
+        ),
+    )
+    
+    # transfer 1000 BOO from our other whale to the xBOO contract
+    print("Total Estimated Assets before donation:", strategy.estimatedTotalAssets()/1e18)
+    whale_2 = accounts.at("0xE0c15e9Fe90d56472D8a43da5D3eF34ae955583C", force=True)
+    xboo = Contract("0xa48d959AE2E88f1dAA7D5F611E01908106dE7598")
+    token.transfer(xboo.address, 1000e18, {"from": whale_2})
+    print("Total Estimated Assets After Donation:", strategy.estimatedTotalAssets()/1e18)
+
+    # simulate 12 hours of earnings
+    chain.mine(1)
+    chain.sleep(43200)
+
+    # harvest, store new asset amount
+    chain.sleep(1)
+    tx = strategy.harvest({"from": gov})
+    chain.sleep(1)
+    new_assets = vault.totalAssets()
+    # confirm we made money, or at least that we have about the same
+    assert new_assets >= old_assets
+    print("\nVault total assets after next harvest: ", new_assets / 1e18)
+
+    # Display estimated APR
+    print(
+        "\nEstimated APR with fake xBOO yield: ",
+        "{:.2%}".format(
+            ((new_assets - old_assets) * (365 * 2)) / (strategy.estimatedTotalAssets())
         ),
     )
 
-    # simulate a day of waiting for share price to bump back up
-    chain.sleep(86400)
-    chain.mine(1)
-
-    # withdraw and confirm we made money
+    # withdraw and confirm we made money, or at least that we have about the same
     vault.withdraw({"from": whale})
     assert token.balanceOf(whale) >= startingWhale

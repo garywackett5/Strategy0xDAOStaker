@@ -1,9 +1,11 @@
 import brownie
 from brownie import Contract
 from brownie import config
+import math
 
-# test passes as of 21-06-26
+
 def test_migration(
+    StrategyBooStaker,
     gov,
     token,
     vault,
@@ -13,12 +15,10 @@ def test_migration(
     strategy,
     chain,
     strategist_ms,
-    StrategyBarnDAOStaking,
-    rewardscontract,
+    healthCheck,
     amount,
-    staking,
-    emissionToken,
     strategy_name,
+    pid,
 ):
 
     ## deposit to the vault after approving
@@ -29,41 +29,55 @@ def test_migration(
     chain.sleep(1)
 
     # deploy our new strategy
-    new_strategy = guardian.deploy(
-        StrategyBarnDAOStaking,
+    new_strategy = strategist.deploy(
+        StrategyBooStaker,
         vault,
-        rewardscontract,
-        emissionToken,
-        staking,
+        pid,
         strategy_name,
     )
     total_old = strategy.estimatedTotalAssets()
 
+    # can we harvest an unactivated strategy? should be no
+    # under our new method of using min and maxDelay, this no longer matters or works
+    # tx = new_strategy.harvestTrigger(0, {"from": gov})
+    # print("\nShould we harvest? Should be False.", tx)
+    # assert tx == False
+
+    # simulate 1 day of earnings
+    chain.sleep(86400)
+    chain.mine(1)
+
     # migrate our old strategy
     vault.migrateStrategy(strategy, new_strategy, {"from": gov})
+    new_strategy.setHealthCheck(healthCheck, {"from": gov})
+    new_strategy.setDoHealthCheck(True, {"from": gov})
 
     # assert that our old strategy is empty
     updated_total_old = strategy.estimatedTotalAssets()
     assert updated_total_old == 0
 
     # harvest to get funds back in strategy
+    chain.sleep(1)
     new_strategy.harvest({"from": gov})
     new_strat_balance = new_strategy.estimatedTotalAssets()
-    assert new_strat_balance >= total_old
+
+    # confirm we made money, or at least that we have about the same
+    assert new_strat_balance >= total_old or math.isclose(
+        new_strat_balance, total_old, abs_tol=5
+    )
 
     startingVault = vault.totalAssets()
     print("\nVault starting assets with new strategy: ", startingVault)
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
-    chain.mine(1)
-
-    # simulate a day of waiting for share price to bump back up
+    # simulate one day of earnings
     chain.sleep(86400)
     chain.mine(1)
 
     # Test out our migrated strategy, confirm we're making a profit
     new_strategy.harvest({"from": gov})
     vaultAssets_2 = vault.totalAssets()
-    assert vaultAssets_2 > startingVault
+    # confirm we made money, or at least that we have about the same
+    assert vaultAssets_2 >= startingVault or math.isclose(
+        vaultAssets_2, startingVault, abs_tol=5
+    )
     print("\nAssets after 1 day harvest: ", vaultAssets_2)

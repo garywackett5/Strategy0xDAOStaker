@@ -13,13 +13,10 @@ def test_odds_and_ends(
     strategy,
     chain,
     strategist_ms,
-    StrategyBarnDAOStaking,
+    pid,
+    StrategyBooStaker,
     amount,
     strategy_name,
-    emissionToken,
-    dummy_gas_oracle,
-    staking,
-    rewardscontract,
 ):
 
     ## deposit to the vault after approving. turn off health check before each harvest since we're doing weird shit
@@ -27,23 +24,24 @@ def test_odds_and_ends(
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
+    chain.sleep(1)
     strategy.harvest({"from": gov})
+    chain.sleep(1)
 
     # send away all funds, will need to alter this based on strategy
-    staked = staking.balanceOf(strategy, token)
-    staking.withdraw(token, staked, {"from": strategy})
-    to_send = token.balanceOf(strategy)
-    print("Token Balance of Vault", to_send)
-    token.transfer(gov, to_send, {"from": strategy})
+    masterchef = Contract("0x2352b745561e7e6FCD03c093cE7220e3e126ace0")
+    strategy_staked = strategy.xbooStakedInMasterchef()
+    masterchef.withdraw(pid, strategy_staked, {"from": strategy})
+    xboo = Contract("0xa48d959AE2E88f1dAA7D5F611E01908106dE7598")
+    to_send = xboo.balanceOf(strategy)
+    print("xBoo Balance of Vault", to_send)
+    xboo.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
-    vault.approve(strategist_ms, 1e25, {"from": whale})
 
-    # we want to check when we have a loss
-    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
-    tx = strategy.harvestTrigger(0, {"from": gov})
-    print("\nShould we harvest? Should be true.", tx)
-    assert tx == True
+    chain.sleep(86400 * 4)  # fast forward so our min delay is passed
+    chain.mine(1)
 
+    chain.sleep(1)
     strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
@@ -54,11 +52,9 @@ def test_odds_and_ends(
     # we can try to migrate too, lol
     # deploy our new strategy
     new_strategy = strategist.deploy(
-        StrategyBarnDAOStaking,
+        StrategyBooStaker,
         vault,
-        rewardscontract,
-        emissionToken,
-        staking,
+        pid,
         strategy_name,
     )
     total_old = strategy.estimatedTotalAssets()
@@ -71,6 +67,8 @@ def test_odds_and_ends(
     assert updated_total_old == 0
 
     # harvest to get funds back in strategy
+    chain.sleep(1)
+    chain.mine(1)
     new_strategy.harvest({"from": gov})
     new_strat_balance = new_strategy.estimatedTotalAssets()
     assert new_strat_balance >= total_old
@@ -78,8 +76,8 @@ def test_odds_and_ends(
     startingVault = vault.totalAssets()
     print("\nVault starting assets with new strategy: ", startingVault)
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
+    # simulate one day of earnings
+    chain.sleep(86400)
     chain.mine(1)
 
     # Test out our migrated strategy, confirm we're making a profit
@@ -113,9 +111,8 @@ def test_odds_and_ends_2(
     strategy,
     chain,
     strategist_ms,
-    StrategyBarnDAOStaking,
+    pid,
     amount,
-    staking,
 ):
 
     ## deposit to the vault after approving. turn off health check since we're doing weird shit
@@ -123,20 +120,20 @@ def test_odds_and_ends_2(
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
+    chain.sleep(1)
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
-    chain.mine(1)
-
     # send away all funds, will need to alter this based on strategy
-    staked = staking.balanceOf(strategy, token)
-    staking.withdraw(token, staked, {"from": strategy})
-    to_send = token.balanceOf(strategy)
-    print("Token Balance of Vault", to_send)
-    token.transfer(gov, to_send, {"from": strategy})
+    masterchef = Contract("0x2352b745561e7e6FCD03c093cE7220e3e126ace0")
+    strategy_staked = strategy.xbooStakedInMasterchef()
+    masterchef.withdraw(pid, strategy_staked, {"from": strategy})
+    xboo = Contract("0xa48d959AE2E88f1dAA7D5F611E01908106dE7598")
+    to_send = xboo.balanceOf(strategy)
+    print("xBoo Balance of Vault", to_send)
+    xboo.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
+    
     strategy.setEmergencyExit({"from": gov})
 
     chain.sleep(1)
@@ -149,7 +146,7 @@ def test_odds_and_ends_2(
 
 
 def test_odds_and_ends_migration(
-    StrategyBarnDAOStaking,
+    StrategyBooStaker,
     gov,
     token,
     vault,
@@ -161,38 +158,27 @@ def test_odds_and_ends_migration(
     strategist_ms,
     amount,
     strategy_name,
-    dummy_gas_oracle,
-    rewardscontract,
-    staking,
-    emissionToken,
+    pid,
 ):
 
     ## deposit to the vault after approving
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
+    chain.sleep(1)
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
     # deploy our new strategy
     new_strategy = strategist.deploy(
-        StrategyBarnDAOStaking,
+        StrategyBooStaker,
         vault,
-        rewardscontract,
-        emissionToken,
-        staking,
+        pid,
         strategy_name,
     )
     total_old = strategy.estimatedTotalAssets()
 
-    # can we harvest an unactivated strategy? should be no
-    new_strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
-    tx = new_strategy.harvestTrigger(0, {"from": gov})
-    print("\nShould we harvest? Should be False.", tx)
-    assert tx == False
-
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
-    chain.mine(1)
+    # sleep for a dau
+    chain.sleep(86400)
 
     # migrate our old strategy
     vault.migrateStrategy(strategy, new_strategy, {"from": gov})
@@ -202,6 +188,7 @@ def test_odds_and_ends_migration(
     assert updated_total_old == 0
 
     # harvest to get funds back in strategy
+    chain.sleep(1)
     new_strategy.harvest({"from": gov})
     new_strat_balance = new_strategy.estimatedTotalAssets()
 
@@ -212,6 +199,10 @@ def test_odds_and_ends_migration(
 
     startingVault = vault.totalAssets()
     print("\nVault starting assets with new strategy: ", startingVault)
+
+    # simulate one day of earnings
+    chain.sleep(86400)
+    chain.mine(1)
 
     # simulate a day of waiting for share price to bump back up
     chain.sleep(86400)
@@ -246,9 +237,6 @@ def test_odds_and_ends_liquidatePosition(
 
     # harvest, store asset amount
     chain.sleep(1)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
     chain.sleep(1)
     old_assets = vault.totalAssets()
@@ -257,11 +245,12 @@ def test_odds_and_ends_liquidatePosition(
     assert strategy.estimatedTotalAssets() > 0
     print("\nStarting Assets: ", old_assets / 1e18)
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
+    # simulate one day of earnings
+    chain.sleep(86400)
     chain.mine(1)
 
     # harvest, store new asset amount
+    chain.sleep(1)
     strategy.harvest({"from": gov})
     chain.sleep(1)
     new_assets = vault.totalAssets()
@@ -271,9 +260,9 @@ def test_odds_and_ends_liquidatePosition(
 
     # Display estimated APR
     print(
-        "\nEstimated SUSHI APR: ",
+        "\nEstimated APR: ",
         "{:.2%}".format(
-            ((new_assets - old_assets) * (365 / 9)) / (strategy.estimatedTotalAssets())
+            ((new_assets - old_assets) * (365)) / (strategy.estimatedTotalAssets())
         ),
     )
 
@@ -300,27 +289,26 @@ def test_odds_and_ends_rekt(
     strategy,
     chain,
     strategist_ms,
+    pid,
     amount,
-    staking,
 ):
     ## deposit to the vault after approving. turn off health check since we're doing weird shit
     strategy.setDoHealthCheck(False, {"from": gov})
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
+    chain.sleep(1)
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
-    chain.mine(1)
-
     # send away all funds, will need to alter this based on strategy
-    staked = staking.balanceOf(strategy, token)
-    staking.withdraw(token, staked, {"from": strategy})
-    to_send = token.balanceOf(strategy)
-    print("Token Balance of Vault", to_send)
-    token.transfer(gov, to_send, {"from": strategy})
+    masterchef = Contract("0x2352b745561e7e6FCD03c093cE7220e3e126ace0")
+    strategy_staked = strategy.xbooStakedInMasterchef()
+    masterchef.withdraw(pid, strategy_staked, {"from": strategy})
+    xboo = Contract("0xa48d959AE2E88f1dAA7D5F611E01908106dE7598")
+    to_send = xboo.balanceOf(strategy)
+    print("xBoo Balance of Vault", to_send)
+    xboo.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
     assert vault.strategies(strategy)[2] == 10000
     print("Strategy Total Debt, this should be >0:", vault.strategies(strategy)[6])
@@ -345,27 +333,26 @@ def test_odds_and_ends_liquidate_rekt(
     strategy,
     chain,
     strategist_ms,
+    pid,
     amount,
-    staking,
 ):
     ## deposit to the vault after approving. turn off health check since we're doing weird shit
     strategy.setDoHealthCheck(False, {"from": gov})
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
+    chain.sleep(1)
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
-    chain.mine(1)
-
     # send away all funds, will need to alter this based on strategy
-    staked = staking.balanceOf(strategy, token)
-    staking.withdraw(token, staked, {"from": strategy})
-    to_send = token.balanceOf(strategy)
-    print("Token Balance of Vault", to_send)
-    token.transfer(gov, to_send, {"from": strategy})
+    masterchef = Contract("0x2352b745561e7e6FCD03c093cE7220e3e126ace0")
+    strategy_staked = strategy.xbooStakedInMasterchef()
+    masterchef.withdraw(pid, strategy_staked, {"from": strategy})
+    xboo = Contract("0xa48d959AE2E88f1dAA7D5F611E01908106dE7598")
+    to_send = xboo.balanceOf(strategy)
+    print("xBoo Balance of Vault", to_send)
+    xboo.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
 
     # we can also withdraw from an empty vault as well, but make sure we're okay with losing 100%
@@ -381,7 +368,6 @@ def test_weird_reverts_and_trigger(
     strategy,
     chain,
     strategist_ms,
-    StrategyBarnDAOStaking,
     other_vault_strategy,
     amount,
 ):
@@ -414,67 +400,21 @@ def test_odds_and_ends_inactive_strat(
     chain,
     strategist_ms,
     amount,
-    dummy_gas_oracle,
 ):
     ## deposit to the vault after approving
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
+    chain.sleep(1)
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
     ## move our funds out of the strategy
     vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
-    # sleep for an hour
-    chain.sleep(3600)
+    # sleep for a day since univ3 is weird
+    chain.sleep(86400)
     strategy.harvest({"from": gov})
 
     # we shouldn't harvest empty strategies
-    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
-    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
     tx = strategy.harvestTrigger(0, {"from": gov})
     print("\nShould we harvest? Should be false.", tx)
     assert tx == False
-
-
-# this one does multiple sells per epoch
-def test_odds_and_ends_multiple_sells(
-    gov,
-    token,
-    vault,
-    strategist,
-    whale,
-    strategy,
-    chain,
-    strategist_ms,
-    amount,
-    dummy_gas_oracle,
-):
-    # set number of sells per epoch
-    strategy.setSellsPerEpoch(2, {"from": gov})
-
-    ## deposit to the vault after approving
-    token.approve(vault, 2 ** 256 - 1, {"from": whale})
-    vault.deposit(amount, {"from": whale})
-    strategy.harvest({"from": gov})
-    chain.sleep(1)
-    chain.sleep(1)
-
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
-    chain.mine(1)
-
-    # harvest once
-    strategy.harvest({"from": gov})
-    chain.sleep(1)
-
-    # harvest twice
-    strategy.harvest({"from": gov})
-    chain.sleep(1)
-
-    # harvest thrice
-    strategy.harvest({"from": gov})
-    chain.sleep(1)
-
-    # harvest four times
-    strategy.harvest({"from": gov})
-    chain.sleep(1)

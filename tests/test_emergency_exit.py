@@ -96,7 +96,7 @@ def test_emergency_exit_with_no_gain_or_loss(
     strategy,
     chain,
     amount,
-    staking,
+    pid,
 ):
     ## deposit to the vault after approving. turn off health check since we're doing weird shit
     strategy.setDoHealthCheck(False, {"from": gov})
@@ -107,16 +107,14 @@ def test_emergency_exit_with_no_gain_or_loss(
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
-    chain.mine(1)
-
     # send away all funds, will need to alter this based on strategy
-    staked = staking.balanceOf(strategy, token)
-    staking.withdraw(token, staked, {"from": strategy})
-    to_send = token.balanceOf(strategy)
-    print("Token Balance of Vault", to_send)
-    token.transfer(gov, to_send, {"from": strategy})
+    masterchef = Contract("0x2352b745561e7e6FCD03c093cE7220e3e126ace0")
+    strategy_staked = strategy.xbooStakedInMasterchef()
+    masterchef.withdraw(pid, strategy_staked, {"from": strategy})
+    xboo = Contract("0xa48d959AE2E88f1dAA7D5F611E01908106dE7598")
+    to_send = xboo.balanceOf(strategy)
+    print("xBoo Balance of Vault", to_send)
+    xboo.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
 
     # have our whale send in exactly our debtOutstanding

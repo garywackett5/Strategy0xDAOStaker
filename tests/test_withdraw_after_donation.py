@@ -12,16 +12,12 @@ def test_withdraw_after_donation_1(
     strategy,
     chain,
     amount,
-    dummy_gas_oracle,
 ):
 
     ## deposit to the vault after approving
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -31,11 +27,10 @@ def test_withdraw_after_donation_1(
     vault.updateStrategyDebtRatio(strategy, currentDebt / 2, {"from": gov})
     assert vault.strategies(strategy)[2] == 5000
 
-    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
-    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
-    tx = strategy.harvestTrigger(0, {"from": gov})
-    print("\nShould we harvest? Should be true.", tx)
-    assert tx == True
+    # under our new method of using min and maxDelay, this no longer matters or works
+    # tx = new_strategy.harvestTrigger(0, {"from": gov})
+    # print("\nShould we harvest? Should be true.", tx)
+    # assert tx == True
 
     # our whale donates dust to the vault, what a nice person!
     donation = amount / 2
@@ -44,16 +39,13 @@ def test_withdraw_after_donation_1(
     # have our whale withdraw half of his donation, this ensures that we test withdrawing without pulling from the staked balance
     vault.withdraw(donation / 2, {"from": whale})
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
+    # simulate one day of earnings
+    chain.sleep(86400)
     chain.mine(1)
 
     # turn off health check since we just took big profit
     strategy.setDoHealthCheck(False, {"from": gov})
     chain.sleep(1)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
     new_params = vault.strategies(strategy).dict()
 
@@ -72,7 +64,9 @@ def test_withdraw_after_donation_1(
     assert new_params["debtRatio"] == currentDebt / 2
 
     # check that we didn't add any more loss, or at least no more than 2 wei
-    assert new_params["totalLoss"] == prev_params["totalLoss"]
+    assert new_params["totalLoss"] == prev_params["totalLoss"] or math.isclose(
+        new_params["totalLoss"], prev_params["totalLoss"], abs_tol=2
+    )
 
     # assert that our vault total assets, multiplied by our debtRatio, is about equal to our estimated total assets plus credit available (within 1 token)
     # we multiply this by the debtRatio of our strategy out of 10_000 total
@@ -94,16 +88,12 @@ def test_withdraw_after_donation_2(
     strategy,
     chain,
     amount,
-    dummy_gas_oracle,
 ):
 
     ## deposit to the vault after approving
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -113,11 +103,10 @@ def test_withdraw_after_donation_2(
     vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
     assert vault.strategies(strategy)[2] == 0
 
-    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
-    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
-    tx = strategy.harvestTrigger(0, {"from": gov})
-    print("\nShould we harvest? Should be true.", tx)
-    assert tx == True
+    # under our new method of using min and maxDelay, this no longer matters or works
+    # tx = new_strategy.harvestTrigger(0, {"from": gov})
+    # print("\nShould we harvest? Should be true.", tx)
+    # assert tx == True
 
     # our whale donates dust to the vault, what a nice person!
     donation = amount / 2
@@ -126,16 +115,13 @@ def test_withdraw_after_donation_2(
     # have our whale withdraw half of his donation, this ensures that we test withdrawing without pulling from the staked balance
     vault.withdraw(donation / 2, {"from": whale})
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
+    # simulate one day of earnings
+    chain.sleep(86400)
     chain.mine(1)
 
     # turn off health check since we just took big profit
     strategy.setDoHealthCheck(False, {"from": gov})
     chain.sleep(1)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
     new_params = vault.strategies(strategy).dict()
 
@@ -151,7 +137,9 @@ def test_withdraw_after_donation_2(
     assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
     # check that we didn't add any more loss, or at least no more than 2 wei
-    assert new_params["totalLoss"] == prev_params["totalLoss"]
+    assert new_params["totalLoss"] == prev_params["totalLoss"] or math.isclose(
+        new_params["totalLoss"], prev_params["totalLoss"], abs_tol=2
+    )
 
     # assert that our vault total assets, multiplied by our debtRatio, is about equal to our estimated total assets plus credit available (within 1 token)
     # we multiply this by the debtRatio of our strategy out of 10_000 total
@@ -173,16 +161,12 @@ def test_withdraw_after_donation_3(
     strategy,
     chain,
     amount,
-    dummy_gas_oracle,
 ):
 
     ## deposit to the vault after approving
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -192,11 +176,10 @@ def test_withdraw_after_donation_3(
     vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
     assert vault.strategies(strategy)[2] == 0
 
-    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
-    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
-    tx = strategy.harvestTrigger(0, {"from": gov})
-    print("\nShould we harvest? Should be true.", tx)
-    assert tx == True
+    # under our new method of using min and maxDelay, this no longer matters or works
+    # tx = new_strategy.harvestTrigger(0, {"from": gov})
+    # print("\nShould we harvest? Should be true.", tx)
+    # assert tx == True
 
     # our whale donates dust to the vault, what a nice person!
     donation = amount / 2
@@ -205,16 +188,13 @@ def test_withdraw_after_donation_3(
     # have our whale withdraws more than his donation, ensuring we pull from strategy
     vault.withdraw(donation + amount / 2, {"from": whale})
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
+    # simulate one day of earnings
+    chain.sleep(86400)
     chain.mine(1)
 
     # turn off health check since we just took big profit
     strategy.setDoHealthCheck(False, {"from": gov})
     chain.sleep(1)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
     new_params = vault.strategies(strategy).dict()
 
@@ -230,7 +210,9 @@ def test_withdraw_after_donation_3(
     assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
     # check that we didn't add any more loss, or at least no more than 2 wei
-    assert new_params["totalLoss"] == prev_params["totalLoss"]
+    assert new_params["totalLoss"] == prev_params["totalLoss"] or math.isclose(
+        new_params["totalLoss"], prev_params["totalLoss"], abs_tol=2
+    )
 
     # assert that our vault total assets, multiplied by our debtRatio, is about equal to our estimated total assets plus credit available (within 1 token)
     # we multiply this by the debtRatio of our strategy out of 10_000 total
@@ -252,16 +234,12 @@ def test_withdraw_after_donation_4(
     strategy,
     chain,
     amount,
-    dummy_gas_oracle,
 ):
 
     ## deposit to the vault after approving
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -271,11 +249,10 @@ def test_withdraw_after_donation_4(
     vault.updateStrategyDebtRatio(strategy, currentDebt / 2, {"from": gov})
     assert vault.strategies(strategy)[2] == 5000
 
-    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
-    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
-    tx = strategy.harvestTrigger(0, {"from": gov})
-    print("\nShould we harvest? Should be true.", tx)
-    assert tx == True
+    # under our new method of using min and maxDelay, this no longer matters or works
+    # tx = new_strategy.harvestTrigger(0, {"from": gov})
+    # print("\nShould we harvest? Should be true.", tx)
+    # assert tx == True
 
     # our whale donates dust to the vault, what a nice person!
     donation = amount / 2
@@ -284,16 +261,13 @@ def test_withdraw_after_donation_4(
     # have our whale withdraws more than his donation, ensuring we pull from strategy
     vault.withdraw(donation + amount / 2, {"from": whale})
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
+    # simulate one day of earnings
+    chain.sleep(86400)
     chain.mine(1)
 
     # turn off health check since we just took big profit
     strategy.setDoHealthCheck(False, {"from": gov})
     chain.sleep(1)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
     new_params = vault.strategies(strategy).dict()
 
@@ -316,7 +290,9 @@ def test_withdraw_after_donation_4(
     assert new_params["debtRatio"] == currentDebt / 2
 
     # check that we didn't add any more loss, or at least no more than 2 wei
-    assert new_params["totalLoss"] == prev_params["totalLoss"]
+    assert new_params["totalLoss"] == prev_params["totalLoss"] or math.isclose(
+        new_params["totalLoss"], prev_params["totalLoss"], abs_tol=2
+    )
 
     # assert that our vault total assets, multiplied by our debtRatio, is about equal to our estimated total assets plus credit available (within 1 token)
     # we multiply this by the debtRatio of our strategy out of 10_000 total
@@ -338,16 +314,12 @@ def test_withdraw_after_donation_5(
     strategy,
     chain,
     amount,
-    dummy_gas_oracle,
 ):
 
     ## deposit to the vault after approving
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -360,16 +332,13 @@ def test_withdraw_after_donation_5(
     # have our whale withdraws more than his donation, ensuring we pull from strategy
     vault.withdraw(donation + amount / 2, {"from": whale})
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
+    # simulate one day of earnings
+    chain.sleep(86400)
     chain.mine(1)
 
     # turn off health check since we just took big profit
     strategy.setDoHealthCheck(False, {"from": gov})
     chain.sleep(1)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
     new_params = vault.strategies(strategy).dict()
 
@@ -385,7 +354,9 @@ def test_withdraw_after_donation_5(
     assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
     # check that we didn't add any more loss, or at least no more than 2 wei
-    assert new_params["totalLoss"] == prev_params["totalLoss"]
+    assert new_params["totalLoss"] == prev_params["totalLoss"] or math.isclose(
+        new_params["totalLoss"], prev_params["totalLoss"], abs_tol=2
+    )
 
     # assert that our vault total assets, multiplied by our debtRatio, is about equal to our estimated total assets plus credit available (within 1 token)
     # we multiply this by the debtRatio of our strategy out of 10_000 total
@@ -407,16 +378,12 @@ def test_withdraw_after_donation_6(
     strategy,
     chain,
     amount,
-    dummy_gas_oracle,
 ):
 
     ## deposit to the vault after approving
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -429,16 +396,13 @@ def test_withdraw_after_donation_6(
     # have our whale withdraws more than his donation, ensuring we pull from strategy
     vault.withdraw(donation / 2, {"from": whale})
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
+    # simulate one day of earnings
+    chain.sleep(86400)
     chain.mine(1)
 
     # turn off health check since we just took big profit
     strategy.setDoHealthCheck(False, {"from": gov})
     chain.sleep(1)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
     new_params = vault.strategies(strategy).dict()
 
@@ -454,7 +418,9 @@ def test_withdraw_after_donation_6(
     assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
     # check that we didn't add any more loss, or at least no more than 2 wei
-    assert new_params["totalLoss"] == prev_params["totalLoss"]
+    assert new_params["totalLoss"] == prev_params["totalLoss"] or math.isclose(
+        new_params["totalLoss"], prev_params["totalLoss"], abs_tol=2
+    )
 
     # assert that our vault total assets, multiplied by our debtRatio, is about equal to our estimated total assets plus credit available (within 1 token)
     # we multiply this by the debtRatio of our strategy out of 10_000 total
@@ -476,16 +442,12 @@ def test_withdraw_after_donation_7(
     strategy,
     chain,
     amount,
-    dummy_gas_oracle,
 ):
 
     ## deposit to the vault after approving
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -496,11 +458,10 @@ def test_withdraw_after_donation_7(
     vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
     assert vault.strategies(strategy)[2] == 0
 
-    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
-    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
-    tx = strategy.harvestTrigger(0, {"from": gov})
-    print("\nShould we harvest? Should be true.", tx)
-    assert tx == True
+    # under our new method of using min and maxDelay, this no longer matters or works
+    # tx = new_strategy.harvestTrigger(0, {"from": gov})
+    # print("\nShould we harvest? Should be true.", tx)
+    # assert tx == True
 
     # our whale donates dust to the vault, what a nice person!
     donation = amount / 2
@@ -510,8 +471,8 @@ def test_withdraw_after_donation_7(
     withdrawal = donation + amount / 2
     vault.withdraw(withdrawal, {"from": whale})
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
+    # simulate one day of earnings
+    chain.sleep(86400)
     chain.mine(1)
 
     # We harvest twice to take profits and then to send the funds to our strategy. This is for our last check below.
@@ -519,9 +480,6 @@ def test_withdraw_after_donation_7(
 
     # turn off health check since we just took big profit
     strategy.setDoHealthCheck(False, {"from": gov})
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
 
     # check everywhere to make sure we emptied out the strategy
@@ -551,7 +509,10 @@ def test_withdraw_after_donation_7(
     assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
     # check that we didn't add any more loss, or at least no more than 2 wei
-    assert new_params["totalLoss"] == prev_params["totalLoss"]
+    assert new_params["totalLoss"] == prev_params["totalLoss"] or math.isclose(
+        new_params["totalLoss"], prev_params["totalLoss"], abs_tol=2
+    )
+
 
 
 # lower debtRatio to 0, donate, withdraw more than the donation, then harvest
@@ -564,16 +525,12 @@ def test_withdraw_after_donation_8(
     strategy,
     chain,
     amount,
-    dummy_gas_oracle,
 ):
 
     ## deposit to the vault after approving
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -584,11 +541,10 @@ def test_withdraw_after_donation_8(
     vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
     assert vault.strategies(strategy)[2] == 0
 
-    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
-    strategy.setGasOracle(dummy_gas_oracle, {"from": gov})
-    tx = strategy.harvestTrigger(0, {"from": gov})
-    print("\nShould we harvest? Should be true.", tx)
-    assert tx == True
+    # under our new method of using min and maxDelay, this no longer matters or works
+    # tx = new_strategy.harvestTrigger(0, {"from": gov})
+    # print("\nShould we harvest? Should be true.", tx)
+    # assert tx == True
 
     # our whale donates dust to the vault, what a nice person!
     donation = amount / 2
@@ -598,8 +554,8 @@ def test_withdraw_after_donation_8(
     withdrawal = donation / 2
     vault.withdraw(withdrawal, {"from": whale})
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
+    # simulate one day of earnings
+    chain.sleep(86400)
     chain.mine(1)
 
     # We harvest twice to take profits and then to send the funds to our strategy. This is for our last check below.
@@ -607,9 +563,6 @@ def test_withdraw_after_donation_8(
 
     # turn off health check since we just took big profit
     strategy.setDoHealthCheck(False, {"from": gov})
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
 
     # check everywhere to make sure we emptied out the strategy
@@ -639,4 +592,6 @@ def test_withdraw_after_donation_8(
     assert new_params["totalGain"] - prev_params["totalGain"] > donation
 
     # check that we didn't add any more loss, or at least no more than 2 wei
-    assert new_params["totalLoss"] == prev_params["totalLoss"]
+    assert new_params["totalLoss"] == prev_params["totalLoss"] or math.isclose(
+        new_params["totalLoss"], prev_params["totalLoss"], abs_tol=2
+    )

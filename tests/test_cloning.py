@@ -12,12 +12,10 @@ def test_cloning(
     keeper,
     rewards,
     chain,
-    StrategyBarnDAOStaking,
+    StrategyBooStaker,
     guardian,
     amount,
-    rewardscontract,
-    emissionToken,
-    staking,
+    pid,
     strategy_name,
 ):
     # Shouldn't be able to call initialize again
@@ -27,26 +25,22 @@ def test_cloning(
             strategist,
             rewards,
             keeper,
-            rewardscontract,
-            emissionToken,
-            staking,
+            pid,
             strategy_name,
             {"from": gov},
         )
 
     ## clone our strategy
-    tx = strategy.cloneBarnDAOStrategy(
+    tx = strategy.cloneBooStaker(
         vault,
         strategist,
         rewards,
         keeper,
-        rewardscontract,
-        emissionToken,
-        staking,
+        pid,
         strategy_name,
         {"from": gov},
     )
-    newStrategy = StrategyBarnDAOStaking.at(tx.return_value)
+    newStrategy = StrategyBooStaker.at(tx.return_value)
 
     # Shouldn't be able to call initialize again
     with brownie.reverts():
@@ -55,23 +49,19 @@ def test_cloning(
             strategist,
             rewards,
             keeper,
-            rewardscontract,
-            emissionToken,
-            staking,
+            pid,
             strategy_name,
             {"from": gov},
         )
 
     ## shouldn't be able to clone a clone
     with brownie.reverts():
-        newStrategy.cloneBarnDAOStrategy(
+        newStrategy.cloneBooStaker(
             vault,
             strategist,
             rewards,
             keeper,
-            rewardscontract,
-            emissionToken,
-            staking,
+            pid,
             strategy_name,
             {"from": gov},
         )
@@ -115,7 +105,7 @@ def test_cloning(
 
     # Display estimated APR
     print(
-        "\nEstimated SUSHI APR: ",
+        "\nEstimated APR: ",
         "{:.2%}".format(
             ((new_assets_dai - old_assets_dai) * (365 / 9))
             / (newStrategy.estimatedTotalAssets())
