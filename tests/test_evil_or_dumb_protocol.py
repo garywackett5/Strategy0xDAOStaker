@@ -190,13 +190,14 @@ def test_protocol_dumb_masterchef_dev(
     chain.mine(1)
 
     # try and add a duplicate pool to bork the contract. since our strategist deployed it, he is the owner.
+    owner = Contract("0xa96D2F0978E317e7a97aDFf7b5A76F4600916021")
     with brownie.reverts():
-        masterchef.add(69, token, {"from": strategist})
+        masterchef.add(69, token, {"from": owner})
     with brownie.reverts():
-        masterchef.set(pid, 6900, {"from": strategist})
+        masterchef.set(pid, 6900, {"from": owner})
 
     # check that we can still withdraw just fine if owner sets rewards to 0
-    masterchef.set(pid, 0, {"from": strategist})
+    masterchef.set(pid, 0, {"from": owner})
     chain.sleep(86400)
     chain.mine(1)
 
