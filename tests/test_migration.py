@@ -5,7 +5,7 @@ import math
 
 
 def test_migration(
-    StrategyBooStaker,
+    Strategy0xDAOStaker,
     gov,
     token,
     vault,
@@ -18,6 +18,7 @@ def test_migration(
     healthCheck,
     amount,
     strategy_name,
+    masterchef,
     pid,
 ):
 
@@ -30,8 +31,9 @@ def test_migration(
 
     # deploy our new strategy
     new_strategy = strategist.deploy(
-        StrategyBooStaker,
+        Strategy0xDAOStaker,
         vault,
+        masterchef,
         pid,
         strategy_name,
     )

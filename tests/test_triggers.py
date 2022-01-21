@@ -43,8 +43,8 @@ def test_triggers(
     print("\nShould we harvest? Should be true.", tx)
     assert tx == True
 
-    # simulate 5 days of earnings
-    chain.sleep(86400 * 5)
+    # simulate 2 days of earnings
+    chain.sleep(86400 * 2)
     chain.mine(1)
 
     # harvest should trigger true
@@ -58,7 +58,7 @@ def test_triggers(
     # allow share price to rise
     chain.sleep(43200)
     chain.mine(1)
-    
+
     vault.withdraw({"from": whale})
     assert token.balanceOf(whale) >= startingWhale
 

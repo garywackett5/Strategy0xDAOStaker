@@ -108,13 +108,10 @@ def test_emergency_exit_with_no_gain_or_loss(
     chain.sleep(1)
 
     # send away all funds, will need to alter this based on strategy
-    masterchef = Contract("0x2352b745561e7e6FCD03c093cE7220e3e126ace0")
-    strategy_staked = strategy.xbooStakedInMasterchef()
-    masterchef.withdraw(pid, strategy_staked, {"from": strategy})
-    xboo = Contract("0xa48d959AE2E88f1dAA7D5F611E01908106dE7598")
-    to_send = xboo.balanceOf(strategy)
-    print("xBoo Balance of Vault", to_send)
-    xboo.transfer(gov, to_send, {"from": strategy})
+    strategy.emergencyWithdraw({"from": gov})
+    to_send = token.balanceOf(strategy)
+    print("Balance of Vault", to_send)
+    token.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
 
     # have our whale send in exactly our debtOutstanding
@@ -136,3 +133,36 @@ def test_emergency_exit_with_no_gain_or_loss(
     # withdraw and confirm we made money, accounting for all of the funds we lost lol
     vault.withdraw({"from": whale})
     assert token.balanceOf(whale) + amount + whale_to_give >= startingWhale
+
+
+def test_emergency_withdraw(
+    gov,
+    token,
+    vault,
+    whale,
+    strategy,
+    chain,
+    amount,
+):
+    ## deposit to the vault after approving
+    startingWhale = token.balanceOf(whale)
+    token.approve(vault, 2 ** 256 - 1, {"from": whale})
+    vault.deposit(amount, {"from": whale})
+    chain.sleep(1)
+    strategy.harvest({"from": gov})
+    chain.sleep(1)
+
+    # simulate 1 day of earnings
+    chain.sleep(86400)
+    chain.mine(1)
+    chain.sleep(1)
+    strategy.harvest({"from": gov})
+    chain.sleep(1)
+
+    # set emergency withdraw
+    strategy.emergencyWithdraw({"from": gov})
+    chain.sleep(1)
+
+    # withdraw and confirm we made money
+    vault.withdraw({"from": whale})
+    assert token.balanceOf(whale) >= startingWhale

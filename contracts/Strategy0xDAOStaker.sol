@@ -18,6 +18,22 @@ import {
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
+interface ICurveFi {
+    function exchange(
+        int128 from,
+        int128 to,
+        uint256 _from_amount,
+        uint256 _min_to_amount
+    ) external;
+
+    function exchange_underlying(
+        int128 from,
+        int128 to,
+        uint256 _from_amount,
+        uint256 _min_to_amount
+    ) external;
+}
+
 interface IUniswapV2Router02 {
     function swapExactTokensForTokens(
         uint256 amountIn,
@@ -33,24 +49,6 @@ interface IUniswapV2Router02 {
         returns (uint256[] memory amounts);
 }
 
-interface IXBoo is IERC20 {
-    function enter(uint256 amount) external; // convert our BOO to xBOO
-
-    function leave(uint256 amount) external; // burn xBOO and get our original deposit + earned BOO
-
-    function emergencyWithdraw(address tokenAddress) external; // can only be done if the last withdraw was > 10 epochs before
-
-    function xBOOForBOO(uint256 _xBOOAmount)
-        external
-        view
-        returns (uint256 booAmount_); // how much BOO we would get for our xBOO
-
-    function BOOForxBOO(uint256 _booAmount)
-        external
-        view
-        returns (uint256 xBOOAmount_); // convert a BOO amount to xBOO
-}
-
 interface IStaking {
     function deposit(uint256 pid, uint256 amount) external;
 
@@ -58,25 +56,14 @@ interface IStaking {
 
     function emergencyWithdraw(uint256 pid) external;
 
-    function pendingReward(uint256 pid, address user)
-        external
-        view
-        returns (uint256); // how much pending reward we have
-
     function poolInfo(uint256 pid)
         external
         view
         returns (
-            address RewardToken,
-            uint256 RewardPerSecond,
-            uint256 TokenPrecision,
-            uint256 xbooStakedAmount,
+            address lpToken,
+            uint256 allocPoint,
             uint256 lastRewardTime,
-            uint256 accRewardPerShare,
-            uint256 endTime,
-            uint256 startTime,
-            uint256 userLimitEndTime,
-            address protocolOwnerAddress
+            uint256 accOXDPerShare
         );
 
     function userInfo(uint256 pid, address user)
@@ -85,7 +72,7 @@ interface IStaking {
         returns (uint256 amount, uint256 rewardDebt); // rewardDebt is pending rewards
 }
 
-contract StrategyBooStaker is BaseStrategy {
+contract Strategy0xDAOStaker is BaseStrategy {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
@@ -93,33 +80,48 @@ contract StrategyBooStaker is BaseStrategy {
     /* ========== STATE VARIABLES ========== */
 
     // staking in our masterchef
-    IStaking internal constant masterchef =
-        IStaking(0x2352b745561e7e6FCD03c093cE7220e3e126ace0);
-    uint256 public pid; // the pool ID we are staking our xBOO for
-    IERC20 public emissionToken; // the token we receive for our xBOO
+    IStaking public masterchef; // **NEED TO UPDATE BEFORE DEPLOYMENT
+    uint256 public pid; // the pool ID we are staking for
+    IERC20 public constant emissionToken =
+        IERC20(0xc165d941481e68696f43EE6E99BFB2B23E0E3114); // the token we receive for staking, 0XD
 
     // swap stuff
     address internal constant spookyRouter =
         0xF491e7B69E4244ad4002BC14e878a34207E38c29;
+    ICurveFi internal constant mimPool =
+        ICurveFi(0x2dd7C9371965472E5A5fD28fbE165007c61439E1); // Curve's MIM-USDC-USDT pool
+    ICurveFi internal constant daiPool =
+        ICurveFi(0x0fa949783947Bf6c1b171DB13AEACBB488845B3f); // Curve's Geist USDC-DAI-USDT pool
 
+    // tokens
     IERC20 internal constant wftm =
         IERC20(0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83);
-    IXBoo internal constant xboo =
-        IXBoo(0xa48d959AE2E88f1dAA7D5F611E01908106dE7598);
+    IERC20 internal constant weth =
+        IERC20(0x74b23882a30290451A17c44f4F05243b6b58C76d);
+    IERC20 internal constant wbtc =
+        IERC20(0x321162Cd933E2Be498Cd2267a90534A804051b11);
+    IERC20 internal constant dai =
+        IERC20(0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E);
+    IERC20 internal constant usdc =
+        IERC20(0x04068DA6C83AFCFA0e13ba15A6696662335D5B75);
+    IERC20 internal constant mim =
+        IERC20(0x82f0B8B456c1A451378467398982d4834b6829c1);
 
     string internal stratName; // we use this for our strategy's name on cloning
     bool internal isOriginal = true;
 
     bool internal forceHarvestTriggerOnce; // only set this to true externally when we want to trigger our keepers to harvest for us
+    uint256 public minHarvestCredit; // if we hit this amount of credit, harvest the strategy
 
     /* ========== CONSTRUCTOR ========== */
 
     constructor(
         address _vault,
+        address _masterchef,
         uint256 _pid,
         string memory _name
     ) public BaseStrategy(_vault) {
-        _initializeStrat(_pid, _name);
+        _initializeStrat(_masterchef, _pid, _name);
     }
 
     /* ========== CLONING ========== */
@@ -127,11 +129,12 @@ contract StrategyBooStaker is BaseStrategy {
     event Cloned(address indexed clone);
 
     // we use this to clone our original strategy to other vaults
-    function cloneBooStaker(
+    function clone0xDAOStaker(
         address _vault,
         address _strategist,
         address _rewards,
         address _keeper,
+        address _masterchef,
         uint256 _pid,
         string memory _name
     ) external returns (address newStrategy) {
@@ -153,11 +156,12 @@ contract StrategyBooStaker is BaseStrategy {
             newStrategy := create(0, clone_code, 0x37)
         }
 
-        StrategyBooStaker(newStrategy).initialize(
+        Strategy0xDAOStaker(newStrategy).initialize(
             _vault,
             _strategist,
             _rewards,
             _keeper,
+            _masterchef,
             _pid,
             _name
         );
@@ -171,15 +175,20 @@ contract StrategyBooStaker is BaseStrategy {
         address _strategist,
         address _rewards,
         address _keeper,
+        address _masterchef,
         uint256 _pid,
         string memory _name
     ) public {
         _initialize(_vault, _strategist, _rewards, _keeper);
-        _initializeStrat(_pid, _name);
+        _initializeStrat(_masterchef, _pid, _name);
     }
 
     // this is called by our original strategy, as well as any clones
-    function _initializeStrat(uint256 _pid, string memory _name) internal {
+    function _initializeStrat(
+        address _masterchef,
+        uint256 _pid,
+        string memory _name
+    ) internal {
         // initialize variables
         maxReportDelay = 86400; // 1 day in seconds, if we hit this then harvestTrigger = True
         healthCheck = address(0xf13Cd6887C62B5beC145e30c38c4938c5E627fe0); // Fantom common health check
@@ -187,15 +196,23 @@ contract StrategyBooStaker is BaseStrategy {
         // set our strategy's name
         stratName = _name;
 
-        // set our emissions token and PID
-        (address _emissionToken, , , , , , , , , ) = masterchef.poolInfo(_pid);
-        emissionToken = IERC20(_emissionToken);
+        // set our masterchef
+        masterchef = IStaking(_masterchef);
+
+        // make sure that we used the correct pid
+        (address pidToken, , , ) = masterchef.poolInfo(_pid);
+        require(address(want) == pidToken);
         pid = _pid;
 
+        // turn off our credit harvest trigger to start with
+        minHarvestCredit = type(uint256).max;
+
         // add approvals on all tokens
+        usdc.approve(spookyRouter, type(uint256).max);
+        usdc.approve(address(mimPool), type(uint256).max);
+        usdc.approve(address(daiPool), type(uint256).max);
+        want.approve(address(masterchef), type(uint256).max);
         emissionToken.approve(spookyRouter, type(uint256).max);
-        want.approve(address(xboo), type(uint256).max);
-        xboo.approve(address(masterchef), type(uint256).max);
     }
 
     /* ========== VIEWS ========== */
@@ -209,13 +226,9 @@ contract StrategyBooStaker is BaseStrategy {
     }
 
     function balanceOfStaked() public view returns (uint256) {
-        (uint256 xbooInMasterchef, ) = masterchef.userInfo(pid, address(this));
-        return xboo.xBOOForBOO(xbooInMasterchef);
-    }
-
-    function xbooStakedInMasterchef() public view returns (uint256) {
-        (uint256 xbooInMasterchef, ) = masterchef.userInfo(pid, address(this));
-        return xbooInMasterchef;
+        (uint256 stakedInMasterchef, ) =
+            masterchef.userInfo(pid, address(this));
+        return stakedInMasterchef;
     }
 
     function estimatedTotalAssets() public view override returns (uint256) {
@@ -251,15 +264,8 @@ contract StrategyBooStaker is BaseStrategy {
                 // don't bother withdrawing if we don't have staked funds
                 uint256 debtNeeded = Math.min(stakedBal, _debtOutstanding);
 
-                // convert BOO to xBOO. if we miss a few wei, it's fine to take a small "loss".
-                uint256 xbooNeeded = xboo.BOOForxBOO(debtNeeded);
-
                 // withdraw from masterchef
-                masterchef.withdraw(pid, xbooNeeded);
-
-                // withdraw from xBOO to BOO
-                uint256 xbooBalance = xboo.balanceOf(address(this));
-                xboo.leave(xbooBalance);
+                masterchef.withdraw(pid, debtNeeded);
             }
             uint256 _withdrawnBal = balanceOfWant();
             _debtPayment = Math.min(_debtOutstanding, _withdrawnBal);
@@ -279,16 +285,8 @@ contract StrategyBooStaker is BaseStrategy {
             // check if we already have enough loose to cover it
             if (_wantBal < _profit.add(_debtPayment)) {
                 uint256 amountToFree = _profit.add(_debtPayment).sub(_wantBal);
-
-                // convert BOO to xBOO. liquidate our whole stack for ease of accounting since conversion has issues.
-                uint256 xbooNeeded = xbooStakedInMasterchef();
-
                 // withdraw from masterchef
-                masterchef.withdraw(pid, xbooNeeded);
-
-                // withdraw from xBOO to BOO
-                uint256 xbooBalance = xboo.balanceOf(address(this));
-                xboo.leave(xbooBalance);
+                masterchef.withdraw(pid, amountToFree);
             }
         }
         // if assets are less than debt, we are in trouble. Losses should never happen, but if it does, let's record it accurately.
@@ -300,32 +298,71 @@ contract StrategyBooStaker is BaseStrategy {
         forceHarvestTriggerOnce = false;
     }
 
-    // sell from reward token to BOO
+    // sell from reward token to want
     function _sell(uint256 _amount) internal {
-        if (address(emissionToken) == address(wftm)) {
-            // sell our emission token for BOO on spookyswap
-            address[] memory emissionTokenPath = new address[](2);
-            emissionTokenPath[0] = address(emissionToken);
-            emissionTokenPath[1] = address(want);
+        // sell our emission token for usdc
+        address[] memory emissionTokenPath = new address[](2);
+        emissionTokenPath[0] = address(emissionToken);
+        emissionTokenPath[1] = address(usdc);
+
+        IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(
+            _amount,
+            uint256(0),
+            emissionTokenPath,
+            address(this),
+            block.timestamp
+        );
+
+        if (address(want) == address(usdc)) {
+            return;
+        }
+
+        // sell our USDC for want
+        uint256 usdcBalance = usdc.balanceOf(address(this));
+        if (address(want) == address(wftm)) {
+            // sell our usdc for want with spooky
+            address[] memory usdcSwapPath = new address[](2);
+            usdcSwapPath[0] = address(usdc);
+            usdcSwapPath[1] = address(want);
 
             IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(
-                _amount,
+                usdcBalance,
                 uint256(0),
-                emissionTokenPath,
+                usdcSwapPath,
                 address(this),
                 block.timestamp
             );
-        } else {
-            // sell our emission token for BOO on spookyswap
-            address[] memory emissionTokenPath = new address[](3);
-            emissionTokenPath[0] = address(emissionToken);
-            emissionTokenPath[1] = address(wftm);
-            emissionTokenPath[2] = address(want);
+        } else if (address(want) == address(weth)) {
+            // sell our usdc for want with spooky
+            address[] memory usdcSwapPath = new address[](3);
+            usdcSwapPath[0] = address(usdc);
+            usdcSwapPath[1] = address(wftm);
+            usdcSwapPath[2] = address(weth);
 
             IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(
-                _amount,
+                usdcBalance,
                 uint256(0),
-                emissionTokenPath,
+                usdcSwapPath,
+                address(this),
+                block.timestamp
+            );
+        } else if (address(want) == address(dai)) {
+            // sell our usdc for want with curve
+            daiPool.exchange_underlying(1, 0, usdcBalance, 0);
+        } else if (address(want) == address(mim)) {
+            // sell our usdc for want with curve
+            mimPool.exchange(2, 0, usdcBalance, 0);
+        } else if (address(want) == address(wbtc)) {
+            // sell our usdc for want with spooky
+            address[] memory usdcSwapPath = new address[](3);
+            usdcSwapPath[0] = address(usdc);
+            usdcSwapPath[1] = address(wftm);
+            usdcSwapPath[2] = address(wbtc);
+
+            IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(
+                usdcBalance,
+                uint256(0),
+                usdcSwapPath,
                 address(this),
                 block.timestamp
             );
@@ -340,9 +377,7 @@ contract StrategyBooStaker is BaseStrategy {
         uint256 toInvest = balanceOfWant();
         // stake only if we have something to stake
         if (toInvest > 0) {
-            xboo.enter(toInvest);
-            uint256 toStake = xboo.balanceOf(address(this));
-            masterchef.deposit(pid, toStake);
+            masterchef.deposit(pid, toInvest);
         }
     }
 
@@ -359,15 +394,8 @@ contract StrategyBooStaker is BaseStrategy {
                 uint256 amountToWithdraw =
                     (Math.min(_stakedBal, _amountNeeded.sub(_wantBal)));
 
-                // convert BOO to xBOO. if we miss a few wei, it's fine to take a small "loss".
-                uint256 xbooNeeded = xboo.BOOForxBOO(amountToWithdraw);
-
                 // withdraw from masterchef
-                masterchef.withdraw(pid, xbooNeeded);
-
-                // withdraw from xBOO to BOO
-                uint256 xbooBalance = xboo.balanceOf(address(this));
-                xboo.leave(xbooBalance);
+                masterchef.withdraw(pid, amountToWithdraw);
             }
             uint256 _withdrawnBal = balanceOfWant();
             _liquidatedAmount = Math.min(_amountNeeded, _withdrawnBal);
@@ -379,13 +407,9 @@ contract StrategyBooStaker is BaseStrategy {
     }
 
     function liquidateAllPositions() internal override returns (uint256) {
-        uint256 stakedxBoo = xbooStakedInMasterchef();
-        if (stakedxBoo > 0) {
-            masterchef.withdraw(pid, stakedxBoo);
-
-            // withdraw from xBOO to BOO
-            uint256 xbooBalance = xboo.balanceOf(address(this));
-            xboo.leave(xbooBalance);
+        uint256 stakedBalance = balanceOfStaked();
+        if (stakedBalance > 0) {
+            masterchef.withdraw(pid, stakedBalance);
         }
         return balanceOfWant();
     }
@@ -396,13 +420,9 @@ contract StrategyBooStaker is BaseStrategy {
     }
 
     function prepareMigration(address _newStrategy) internal override {
-        uint256 stakedxBoo = xbooStakedInMasterchef();
-        if (stakedxBoo > 0) {
-            masterchef.withdraw(pid, stakedxBoo);
-
-            // withdraw from xBOO to BOO
-            uint256 xbooBalance = xboo.balanceOf(address(this));
-            xboo.leave(xbooBalance);
+        uint256 stakedBalance = balanceOfStaked();
+        if (stakedBalance > 0) {
+            masterchef.withdraw(pid, stakedBalance);
         }
 
         // send our claimed emissionToken to the new strategy
@@ -438,6 +458,11 @@ contract StrategyBooStaker is BaseStrategy {
             return true;
         }
 
+        // trigger if we have enough credit
+        if (vault.creditAvailable() >= minHarvestCredit) {
+            return true;
+        }
+
         // otherwise, we don't harvest
         return false;
     }
@@ -457,5 +482,13 @@ contract StrategyBooStaker is BaseStrategy {
         onlyAuthorized
     {
         forceHarvestTriggerOnce = _forceHarvestTriggerOnce;
+    }
+
+    ///@notice When our strategy has this much credit, harvestTrigger will be true.
+    function setMinHarvestCredit(uint256 _minHarvestCredit)
+        external
+        onlyAuthorized
+    {
+        minHarvestCredit = _minHarvestCredit;
     }
 }
