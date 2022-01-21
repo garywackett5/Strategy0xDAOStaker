@@ -241,7 +241,7 @@ def test_odds_and_ends_liquidatePosition(
     assert old_assets > 0
     assert token.balanceOf(strategy) == 0
     assert strategy.estimatedTotalAssets() > 0
-    print("\nStarting Assets: ", old_assets / 1e18)
+    print("\nStarting Assets: ", old_assets / (10 ** token.decimals()))
 
     # simulate one day of earnings
     chain.sleep(86400)
@@ -254,7 +254,7 @@ def test_odds_and_ends_liquidatePosition(
     new_assets = vault.totalAssets()
     # confirm we made money, or at least that we have about the same
     assert new_assets >= old_assets or math.isclose(new_assets, old_assets, abs_tol=5)
-    print("\nAssets after 1 day: ", new_assets / 1e18)
+    print("\nAssets after 1 day: ", new_assets / (10 ** token.decimals()))
 
     # Display estimated APR
     print(

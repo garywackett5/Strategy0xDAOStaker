@@ -33,7 +33,7 @@ def test_simple_harvest(
     assert old_assets > 0
     assert token.balanceOf(strategy) == 0
     assert strategy.estimatedTotalAssets() > 0
-    print("\nStarting vault total assets: ", old_assets / 1e18)
+    print("\nStarting vault total assets: ", old_assets / (10 ** token.decimals()))
 
     # simulate 12 hours of earnings
     chain.sleep(43200)
@@ -41,7 +41,10 @@ def test_simple_harvest(
 
     # check on our pending rewards
     pending = masterchef.pendingOXD(pid, strategy, {"from": whale})
-    print("This is our pending reward after 12 hours: $" + str(pending / 1e18))
+    print(
+        "This is our pending reward after 12 hours: $"
+        + str(pending / (10 ** reward_token.decimals()))
+    )
 
     # harvest, store new asset amount. Turn off health check since we are only ones in this pool.
     chain.sleep(1)
@@ -51,7 +54,9 @@ def test_simple_harvest(
     new_assets = vault.totalAssets()
     # confirm we made money, or at least that we have about the same
     assert new_assets >= old_assets
-    print("\nVault total assets after 1 harvest: ", new_assets / 1e18)
+    print(
+        "\nVault total assets after 1 harvest: ", new_assets / (10 ** token.decimals())
+    )
 
     # Display estimated APR
     print(

@@ -32,6 +32,23 @@ def test_cloning(
             {"from": gov},
         )
 
+    # Shouldn't be able use mismatched token and pid
+    if pid == 5:
+        wrong_pid = 3
+    else:
+        wrong_pid = pid + 1
+    with brownie.reverts():
+        strategy.initialize(
+            vault,
+            strategist,
+            rewards,
+            keeper,
+            masterchef,
+            wrong_pid,
+            strategy_name,
+            {"from": gov},
+        )
+
     ## clone our strategy
     tx = strategy.clone0xDAOStaker(
         vault,
@@ -95,10 +112,10 @@ def test_cloning(
     assert old_assets_dai > 0
     assert token.balanceOf(newStrategy) == 0
     assert newStrategy.estimatedTotalAssets() > 0
-    print("\nStarting Assets: ", old_assets_dai / 1e18)
+    print("\nStarting Assets: ", old_assets_dai / (10 ** token.decimals()))
 
     # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
+    chain.sleep(86400)
     chain.mine(1)
 
     # harvest after a day, store new asset amount
@@ -106,13 +123,13 @@ def test_cloning(
     new_assets_dai = vault.totalAssets()
     # we can't use strategyEstimated Assets because the profits are sent to the vault
     assert new_assets_dai >= old_assets_dai
-    print("\nAssets after 2 days: ", new_assets_dai / 1e18)
+    print("\nAssets after 2 days: ", new_assets_dai / (10 ** token.decimals()))
 
     # Display estimated APR
     print(
         "\nEstimated APR: ",
         "{:.2%}".format(
-            ((new_assets_dai - old_assets_dai) * (365 / 9))
+            ((new_assets_dai - old_assets_dai) * (365))
             / (newStrategy.estimatedTotalAssets())
         ),
     )

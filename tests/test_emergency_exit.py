@@ -134,6 +134,7 @@ def test_emergency_exit_with_no_gain_or_loss(
     vault.withdraw({"from": whale})
     assert token.balanceOf(whale) + amount + whale_to_give >= startingWhale
 
+
 def test_emergency_withdraw(
     gov,
     token,
@@ -165,5 +166,3 @@ def test_emergency_withdraw(
     # withdraw and confirm we made money
     vault.withdraw({"from": whale})
     assert token.balanceOf(whale) >= startingWhale
-
-

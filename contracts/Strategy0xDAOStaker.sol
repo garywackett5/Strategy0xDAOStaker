@@ -82,7 +82,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
     // staking in our masterchef
     IStaking public masterchef; // **NEED TO UPDATE BEFORE DEPLOYMENT
     uint256 public pid; // the pool ID we are staking for
-    IERC20 public emissionToken =
+    IERC20 public constant emissionToken =
         IERC20(0xc165d941481e68696f43EE6E99BFB2B23E0E3114); // the token we receive for staking, 0XD
 
     // swap stuff
@@ -99,7 +99,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
     IERC20 internal constant weth =
         IERC20(0x74b23882a30290451A17c44f4F05243b6b58C76d);
     IERC20 internal constant wbtc =
-        IERC20(0x74b23882a30290451A17c44f4F05243b6b58C76d);
+        IERC20(0x321162Cd933E2Be498Cd2267a90534A804051b11);
     IERC20 internal constant dai =
         IERC20(0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E);
     IERC20 internal constant usdc =
@@ -208,11 +208,11 @@ contract Strategy0xDAOStaker is BaseStrategy {
         minHarvestCredit = type(uint256).max;
 
         // add approvals on all tokens
-        emissionToken.approve(spookyRouter, type(uint256).max);
         usdc.approve(spookyRouter, type(uint256).max);
         usdc.approve(address(mimPool), type(uint256).max);
         usdc.approve(address(daiPool), type(uint256).max);
         want.approve(address(masterchef), type(uint256).max);
+        emissionToken.approve(spookyRouter, type(uint256).max);
     }
 
     /* ========== VIEWS ========== */
@@ -334,9 +334,10 @@ contract Strategy0xDAOStaker is BaseStrategy {
             );
         } else if (address(want) == address(weth)) {
             // sell our usdc for want with spooky
-            address[] memory usdcSwapPath = new address[](2);
+            address[] memory usdcSwapPath = new address[](3);
             usdcSwapPath[0] = address(usdc);
-            usdcSwapPath[1] = address(weth);
+            usdcSwapPath[1] = address(wftm);
+            usdcSwapPath[2] = address(weth);
 
             IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(
                 usdcBalance,
@@ -350,7 +351,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
             daiPool.exchange_underlying(1, 0, usdcBalance, 0);
         } else if (address(want) == address(mim)) {
             // sell our usdc for want with curve
-            mimPool.exchange(2, 1, usdcBalance, 0);
+            mimPool.exchange(2, 0, usdcBalance, 0);
         } else if (address(want) == address(wbtc)) {
             // sell our usdc for want with spooky
             address[] memory usdcSwapPath = new address[](3);

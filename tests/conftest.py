@@ -85,13 +85,15 @@ def whale(accounts, pid):
 
 # this is the amount of funds we have our whale deposit. adjust this as needed based on their wallet balance
 @pytest.fixture(scope="module")
-def amount(token, pid):
+def amount(token, pid):  # use today's exchange rates to have similar $$ amounts
     if pid == 2:  # WBTC
-        amount = 100 * (10 ** token.decimals())
+        amount = 382 * (10 ** token.decimals())
     elif pid == 1:  # WETH
-        amount = 1000 * (10 ** token.decimals())
-    else:  # stables and WFTM
-        amount = 5_000_000 * (10 ** token.decimals())
+        amount = 5196 * (10 ** token.decimals())
+    elif pid == 0:  # WFTM
+        amount = 5769230 * (10 ** token.decimals())
+    else:  # stables
+        amount = 15_000_000 * (10 ** token.decimals())
     yield amount
 
 
