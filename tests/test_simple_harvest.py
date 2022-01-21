@@ -27,6 +27,7 @@ def test_simple_harvest(
 
     # harvest, store asset amount
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
     old_assets = vault.totalAssets()
@@ -48,6 +49,7 @@ def test_simple_harvest(
 
     # harvest, store new asset amount. Turn off health check since we are only ones in this pool.
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     tx = strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -65,6 +67,8 @@ def test_simple_harvest(
             ((new_assets - old_assets) * (365 * 2)) / (strategy.estimatedTotalAssets())
         ),
     )
+    apr = ((new_assets - old_assets) * (365 * 2)) / (strategy.estimatedTotalAssets())
+    assert apr > 20000
 
     # withdraw and confirm we made money, or at least that we have about the same
     vault.withdraw({"from": whale})

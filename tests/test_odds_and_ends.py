@@ -26,6 +26,7 @@ def test_odds_and_ends(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -41,6 +42,7 @@ def test_odds_and_ends(
 
     chain.sleep(1)
     strategy.setDoHealthCheck(False, {"from": gov})
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -52,7 +54,6 @@ def test_odds_and_ends(
     new_strategy = strategist.deploy(
         Strategy0xDAOStaker,
         vault,
-        masterchef,
         pid,
         strategy_name,
     )
@@ -120,6 +121,7 @@ def test_odds_and_ends_2(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -133,6 +135,7 @@ def test_odds_and_ends_2(
     strategy.setEmergencyExit({"from": gov})
 
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
@@ -162,6 +165,7 @@ def test_odds_and_ends_migration(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -169,7 +173,6 @@ def test_odds_and_ends_migration(
     new_strategy = strategist.deploy(
         Strategy0xDAOStaker,
         vault,
-        masterchef,
         pid,
         strategy_name,
     )
@@ -207,6 +210,7 @@ def test_odds_and_ends_migration(
     chain.mine(1)
 
     # Test out our migrated strategy, confirm we're making a profit
+    new_strategy.setDoHealthCheck(False, {"from": gov})
     new_strategy.harvest({"from": gov})
     vaultAssets_2 = vault.totalAssets()
     # confirm we made money, or at least that we have about the same
@@ -235,6 +239,7 @@ def test_odds_and_ends_liquidatePosition(
 
     # harvest, store asset amount
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
     old_assets = vault.totalAssets()
@@ -249,6 +254,7 @@ def test_odds_and_ends_liquidatePosition(
 
     # harvest, store new asset amount
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
     new_assets = vault.totalAssets()
@@ -296,6 +302,7 @@ def test_odds_and_ends_rekt(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -337,6 +344,7 @@ def test_odds_and_ends_liquidate_rekt(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -397,6 +405,7 @@ def test_odds_and_ends_inactive_strat(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -404,6 +413,7 @@ def test_odds_and_ends_inactive_strat(
     vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
     # sleep for a day since univ3 is weird
     chain.sleep(86400)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
 
     # we shouldn't harvest empty strategies

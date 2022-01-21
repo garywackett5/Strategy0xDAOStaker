@@ -19,6 +19,7 @@ def test_change_debt(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -31,6 +32,7 @@ def test_change_debt(
     vault.updateStrategyDebtRatio(strategy, currentDebt / 2, {"from": gov})
     # sleep for a day to make sure we are swapping enough (Uni v3 combined with only 6 decimals)
     chain.sleep(86400)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -43,6 +45,7 @@ def test_change_debt(
     # set DebtRatio back to 100%
     vault.updateStrategyDebtRatio(strategy, currentDebt, {"from": gov})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 

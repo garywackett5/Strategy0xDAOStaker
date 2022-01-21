@@ -18,6 +18,7 @@ def test_withdraw_after_donation_1(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -46,6 +47,7 @@ def test_withdraw_after_donation_1(
     # turn off health check since we just took big profit
     strategy.setDoHealthCheck(False, {"from": gov})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     new_params = vault.strategies(strategy).dict()
 
@@ -94,6 +96,7 @@ def test_withdraw_after_donation_2(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -122,6 +125,7 @@ def test_withdraw_after_donation_2(
     # turn off health check since we just took big profit
     strategy.setDoHealthCheck(False, {"from": gov})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     new_params = vault.strategies(strategy).dict()
 
@@ -167,6 +171,7 @@ def test_withdraw_after_donation_3(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -195,6 +200,7 @@ def test_withdraw_after_donation_3(
     # turn off health check since we just took big profit
     strategy.setDoHealthCheck(False, {"from": gov})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     new_params = vault.strategies(strategy).dict()
 
@@ -240,6 +246,7 @@ def test_withdraw_after_donation_4(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -268,6 +275,7 @@ def test_withdraw_after_donation_4(
     # turn off health check since we just took big profit
     strategy.setDoHealthCheck(False, {"from": gov})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     new_params = vault.strategies(strategy).dict()
 
@@ -320,6 +328,7 @@ def test_withdraw_after_donation_5(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -339,6 +348,7 @@ def test_withdraw_after_donation_5(
     # turn off health check since we just took big profit
     strategy.setDoHealthCheck(False, {"from": gov})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     new_params = vault.strategies(strategy).dict()
 
@@ -384,6 +394,7 @@ def test_withdraw_after_donation_6(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -403,6 +414,7 @@ def test_withdraw_after_donation_6(
     # turn off health check since we just took big profit
     strategy.setDoHealthCheck(False, {"from": gov})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     new_params = vault.strategies(strategy).dict()
 
@@ -448,6 +460,7 @@ def test_withdraw_after_donation_7(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -479,6 +492,7 @@ def test_withdraw_after_donation_7(
     chain.sleep(1)
 
     # turn off health check since we just took big profit
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
 
@@ -530,6 +544,7 @@ def test_withdraw_after_donation_8(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -561,6 +576,7 @@ def test_withdraw_after_donation_8(
     chain.sleep(1)
 
     # turn off health check since we just took big profit
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
 

@@ -26,6 +26,7 @@ def test_migration(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -33,7 +34,6 @@ def test_migration(
     new_strategy = strategist.deploy(
         Strategy0xDAOStaker,
         vault,
-        masterchef,
         pid,
         strategy_name,
     )
@@ -60,6 +60,7 @@ def test_migration(
 
     # harvest to get funds back in strategy
     chain.sleep(1)
+    new_strategy.setDoHealthCheck(False, {"from": gov})
     new_strategy.harvest({"from": gov})
     new_strat_balance = new_strategy.estimatedTotalAssets()
 
@@ -76,6 +77,7 @@ def test_migration(
     chain.mine(1)
 
     # Test out our migrated strategy, confirm we're making a profit
+    new_strategy.setDoHealthCheck(False, {"from": gov})
     new_strategy.harvest({"from": gov})
     vaultAssets_2 = vault.totalAssets()
     # confirm we made money, or at least that we have about the same

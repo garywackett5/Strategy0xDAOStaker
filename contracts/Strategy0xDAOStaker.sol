@@ -49,14 +49,14 @@ interface IUniswapV2Router02 {
         returns (uint256[] memory amounts);
 }
 
-interface IStaking {
-    function deposit(uint256 pid, uint256 amount) external;
+interface ChefLike {
+    function deposit(uint256 _pid, uint256 _amount) external;
 
-    function withdraw(uint256 pid, uint256 amount) external; // also use amount=0 for harvesting rewards
+    function withdraw(uint256 _pid, uint256 _amount) external; // use amount = 0 for harvesting rewards
 
-    function emergencyWithdraw(uint256 pid) external;
+    function emergencyWithdraw(uint256 _pid) external;
 
-    function poolInfo(uint256 pid)
+    function poolInfo(uint256 _pid)
         external
         view
         returns (
@@ -66,10 +66,10 @@ interface IStaking {
             uint256 accOXDPerShare
         );
 
-    function userInfo(uint256 pid, address user)
+    function userInfo(uint256 _pid, address user)
         external
         view
-        returns (uint256 amount, uint256 rewardDebt); // rewardDebt is pending rewards
+        returns (uint256 amount, uint256 rewardDebt);
 }
 
 contract Strategy0xDAOStaker is BaseStrategy {
@@ -79,9 +79,8 @@ contract Strategy0xDAOStaker is BaseStrategy {
 
     /* ========== STATE VARIABLES ========== */
 
-    // staking in our masterchef
-    IStaking public masterchef; // **NEED TO UPDATE BEFORE DEPLOYMENT
-    uint256 public pid; // the pool ID we are staking for
+    ChefLike public constant masterchef =
+        ChefLike(0xa7821C3e9fC1bF961e280510c471031120716c3d);
     IERC20 public constant emissionToken =
         IERC20(0xc165d941481e68696f43EE6E99BFB2B23E0E3114); // the token we receive for staking, 0XD
 
@@ -107,6 +106,8 @@ contract Strategy0xDAOStaker is BaseStrategy {
     IERC20 internal constant mim =
         IERC20(0x82f0B8B456c1A451378467398982d4834b6829c1);
 
+    uint256 public pid; // the pool ID we are staking for
+
     string internal stratName; // we use this for our strategy's name on cloning
     bool internal isOriginal = true;
 
@@ -117,11 +118,10 @@ contract Strategy0xDAOStaker is BaseStrategy {
 
     constructor(
         address _vault,
-        address _masterchef,
         uint256 _pid,
         string memory _name
     ) public BaseStrategy(_vault) {
-        _initializeStrat(_masterchef, _pid, _name);
+        _initializeStrat(_pid, _name);
     }
 
     /* ========== CLONING ========== */
@@ -134,7 +134,6 @@ contract Strategy0xDAOStaker is BaseStrategy {
         address _strategist,
         address _rewards,
         address _keeper,
-        address _masterchef,
         uint256 _pid,
         string memory _name
     ) external returns (address newStrategy) {
@@ -161,7 +160,6 @@ contract Strategy0xDAOStaker is BaseStrategy {
             _strategist,
             _rewards,
             _keeper,
-            _masterchef,
             _pid,
             _name
         );
@@ -175,34 +173,26 @@ contract Strategy0xDAOStaker is BaseStrategy {
         address _strategist,
         address _rewards,
         address _keeper,
-        address _masterchef,
         uint256 _pid,
         string memory _name
     ) public {
         _initialize(_vault, _strategist, _rewards, _keeper);
-        _initializeStrat(_masterchef, _pid, _name);
+        _initializeStrat(_pid, _name);
     }
 
     // this is called by our original strategy, as well as any clones
-    function _initializeStrat(
-        address _masterchef,
-        uint256 _pid,
-        string memory _name
-    ) internal {
+    function _initializeStrat(uint256 _pid, string memory _name) internal {
         // initialize variables
-        maxReportDelay = 86400; // 1 day in seconds, if we hit this then harvestTrigger = True
+        maxReportDelay = 43200; // 1/2 day in seconds, if we hit this then harvestTrigger = True
         healthCheck = address(0xf13Cd6887C62B5beC145e30c38c4938c5E627fe0); // Fantom common health check
 
         // set our strategy's name
         stratName = _name;
 
-        // set our masterchef
-        masterchef = IStaking(_masterchef);
-
         // make sure that we used the correct pid
-        (address pidToken, , , ) = masterchef.poolInfo(_pid);
-        require(address(want) == pidToken);
         pid = _pid;
+        (address poolToken, , , ) = masterchef.poolInfo(pid);
+        require(poolToken == address(want), "wrong pid");
 
         // turn off our credit harvest trigger to start with
         minHarvestCredit = type(uint256).max;
@@ -257,45 +247,116 @@ contract Strategy0xDAOStaker is BaseStrategy {
             _sell(emissionTokenBalance);
         }
 
-        // debtOustanding will only be > 0 if we need to rebalance from a withdrawal or lowering the debtRatio, or if we revoke the strategy.
-        if (_debtOutstanding > 0) {
-            uint256 stakedBal = balanceOfStaked();
-            if (stakedBal > 0) {
-                // don't bother withdrawing if we don't have staked funds
-                uint256 debtNeeded = Math.min(stakedBal, _debtOutstanding);
-
-                // withdraw from masterchef
-                masterchef.withdraw(pid, debtNeeded);
-            }
-            uint256 _withdrawnBal = balanceOfWant();
-            _debtPayment = Math.min(_debtOutstanding, _withdrawnBal);
-        }
-
-        // this is where we record our profit and (hopefully no) losses
         uint256 assets = estimatedTotalAssets();
+        uint256 wantBal = balanceOfWant();
+
         uint256 debt = vault.strategies(address(this)).totalDebt;
+        uint256 amountToFree;
 
-        // if assets are greater than debt, things are working great!
-        if (assets > debt) {
-            _profit = assets.sub(debt);
-
-            // we need to prove to the vault that we have enough want to cover our profit and debt payment
-            uint256 _wantBal = balanceOfWant();
-
-            // check if we already have enough loose to cover it
-            if (_wantBal < _profit.add(_debtPayment)) {
-                uint256 amountToFree = _profit.add(_debtPayment).sub(_wantBal);
-                // withdraw from masterchef
-                masterchef.withdraw(pid, amountToFree);
-            }
+        // this would only happen if the masterchef somehow lost funds or was drained
+        uint256 masterchefHoldings = want.balanceOf(address(masterchef));
+        uint256 stakedBalance = balanceOfStaked();
+        if (masterchefHoldings < stakedBalance) {
+            amountToFree = masterchefHoldings;
+            liquidatePosition(amountToFree);
+            _debtPayment = balanceOfWant();
+            _loss = stakedBalance.sub(_debtPayment);
+            return (_profit, _loss, _debtPayment);
         }
-        // if assets are less than debt, we are in trouble. Losses should never happen, but if it does, let's record it accurately.
-        else {
-            _loss = debt.sub(assets);
+
+        if (assets > debt) {
+            _debtPayment = _debtOutstanding;
+            _profit = assets - debt;
+
+            amountToFree = _profit.add(_debtPayment);
+
+            if (amountToFree > 0 && wantBal < amountToFree) {
+                liquidatePosition(amountToFree);
+
+                uint256 newLoose = want.balanceOf(address(this));
+
+                //if we dont have enough money adjust _debtOutstanding and only change profit if needed
+                if (newLoose < amountToFree) {
+                    if (_profit > newLoose) {
+                        _profit = newLoose;
+                        _debtPayment = 0;
+                    } else {
+                        _debtPayment = Math.min(
+                            newLoose - _profit,
+                            _debtPayment
+                        );
+                    }
+                }
+            }
+        } else {
+            //serious loss should never happen but if it does lets record it accurately
+            _loss = debt - assets;
         }
 
         // we're done harvesting, so reset our trigger if we used it
         forceHarvestTriggerOnce = false;
+    }
+
+    function adjustPosition(uint256 _debtOutstanding) internal override {
+        if (emergencyExit) {
+            return;
+        }
+        // send all of our want tokens to be deposited
+        uint256 toInvest = balanceOfWant();
+        // stake only if we have something to stake
+        if (toInvest > 0) {
+            masterchef.deposit(pid, toInvest);
+        }
+    }
+
+    function liquidatePosition(uint256 _amountNeeded)
+        internal
+        override
+        returns (uint256 _liquidatedAmount, uint256 _loss)
+    {
+        uint256 totalAssets = want.balanceOf(address(this));
+        if (_amountNeeded > totalAssets) {
+            uint256 amountToFree = _amountNeeded.sub(totalAssets);
+
+            (uint256 deposited, ) =
+                ChefLike(masterchef).userInfo(pid, address(this));
+            if (deposited < amountToFree) {
+                amountToFree = deposited;
+            }
+            if (deposited > 0) {
+                ChefLike(masterchef).withdraw(pid, amountToFree);
+            }
+
+            _liquidatedAmount = want.balanceOf(address(this));
+        } else {
+            _liquidatedAmount = _amountNeeded;
+        }
+    }
+
+    function liquidateAllPositions() internal override returns (uint256) {
+        uint256 stakedBalance = balanceOfStaked();
+        if (stakedBalance > 0) {
+            masterchef.withdraw(pid, stakedBalance);
+        }
+        return balanceOfWant();
+    }
+
+    function prepareMigration(address _newStrategy) internal override {
+        uint256 stakedBalance = balanceOfStaked();
+        if (stakedBalance > 0) {
+            masterchef.withdraw(pid, stakedBalance);
+        }
+
+        // send our claimed emissionToken to the new strategy
+        emissionToken.safeTransfer(
+            _newStrategy,
+            emissionToken.balanceOf(address(this))
+        );
+    }
+
+    ///@notice Only do this if absolutely necessary; as assets will be withdrawn but rewards won't be claimed.
+    function emergencyWithdraw() external onlyEmergencyAuthorized {
+        masterchef.emergencyWithdraw(pid);
     }
 
     // sell from reward token to want
@@ -367,69 +428,6 @@ contract Strategy0xDAOStaker is BaseStrategy {
                 block.timestamp
             );
         }
-    }
-
-    function adjustPosition(uint256 _debtOutstanding) internal override {
-        if (emergencyExit) {
-            return;
-        }
-        // send all of our want tokens to be deposited
-        uint256 toInvest = balanceOfWant();
-        // stake only if we have something to stake
-        if (toInvest > 0) {
-            masterchef.deposit(pid, toInvest);
-        }
-    }
-
-    function liquidatePosition(uint256 _amountNeeded)
-        internal
-        override
-        returns (uint256 _liquidatedAmount, uint256 _loss)
-    {
-        uint256 _wantBal = balanceOfWant();
-        if (_amountNeeded > _wantBal) {
-            // check if we have enough free funds to cover the withdrawal
-            uint256 _stakedBal = balanceOfStaked();
-            if (_stakedBal > 0) {
-                uint256 amountToWithdraw =
-                    (Math.min(_stakedBal, _amountNeeded.sub(_wantBal)));
-
-                // withdraw from masterchef
-                masterchef.withdraw(pid, amountToWithdraw);
-            }
-            uint256 _withdrawnBal = balanceOfWant();
-            _liquidatedAmount = Math.min(_amountNeeded, _withdrawnBal);
-            _loss = _amountNeeded.sub(_liquidatedAmount);
-        } else {
-            // we have enough balance to cover the liquidation available
-            return (_amountNeeded, 0);
-        }
-    }
-
-    function liquidateAllPositions() internal override returns (uint256) {
-        uint256 stakedBalance = balanceOfStaked();
-        if (stakedBalance > 0) {
-            masterchef.withdraw(pid, stakedBalance);
-        }
-        return balanceOfWant();
-    }
-
-    ///@notice Only do this if absolutely necessary; as assets will be withdrawn but rewards won't be claimed.
-    function emergencyWithdraw() external onlyEmergencyAuthorized {
-        masterchef.emergencyWithdraw(pid);
-    }
-
-    function prepareMigration(address _newStrategy) internal override {
-        uint256 stakedBalance = balanceOfStaked();
-        if (stakedBalance > 0) {
-            masterchef.withdraw(pid, stakedBalance);
-        }
-
-        // send our claimed emissionToken to the new strategy
-        emissionToken.safeTransfer(
-            _newStrategy,
-            emissionToken.balanceOf(address(this))
-        );
     }
 
     function protectedTokens()

@@ -22,11 +22,12 @@ def test_triggers(
     newWhale = token.balanceOf(whale)
     starting_assets = vault.totalAssets()
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
-    # simulate a day of earnings
-    chain.sleep(43200)
+    # simulate a quarter day of earnings
+    chain.sleep(21600)
     chain.mine(1)
 
     # harvest should trigger false; hasn't been long enough
@@ -53,6 +54,7 @@ def test_triggers(
     assert tx == True
 
     # withdraw and confirm we made money
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
 
     # allow share price to rise
@@ -81,6 +83,7 @@ def test_less_useful_triggers(
     newWhale = token.balanceOf(whale)
     starting_assets = vault.totalAssets()
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 

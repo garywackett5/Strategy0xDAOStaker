@@ -7,10 +7,10 @@ def isolation(fn_isolation):
     pass
 
 
-# this is the pool ID that we are staking for. 0-5, wftm-mim
+# this is the pool ID that we are staking for. 1-6, wftm-mim
 @pytest.fixture(scope="module")
 def pid():
-    pid = 0
+    pid = 1
     yield pid
 
 
@@ -55,17 +55,17 @@ def mim():
 @pytest.fixture(scope="module")
 def token(pid, wftm, weth, wbtc, dai, usdc, mim):
     # this should be the address of the ERC-20 used by the strategy/vault
-    if pid == 0:
+    if pid == 1:
         token = wftm
-    elif pid == 1:
-        token = weth
     elif pid == 2:
-        token = wbtc
+        token = weth
     elif pid == 3:
-        token = dai
+        token = wbtc
     elif pid == 4:
         token = usdc
     elif pid == 5:
+        token = dai
+    elif pid == 6:
         token = mim
     yield token
 
@@ -76,7 +76,7 @@ def whale(accounts, pid):
     # Update this with a large holder of your want token (the largest EOA holder of LP)
     if pid == 2:  # WBTC
         whale = accounts.at("0x38aCa5484B8603373Acc6961Ecd57a6a594510A3", force=True)
-    elif pid == 3:  # DAI
+    elif pid == 5:  # DAI
         whale = accounts.at("0x8D9AED9882b4953a0c9fa920168fa1FDfA0eBE75", force=True)
     else:
         whale = accounts.at("0xE04C26444d37fE103B9cc8033c99b09D47056f51", force=True)
@@ -207,41 +207,11 @@ def masterchef(
     accounts,
 ):
     # make sure to include all constructor parameters needed here
-    per_second = 1e18  # will be 1000e18 in real life, but that's too high for only us in the pool (health check fails)
-    start = 1642795200  # 3pm EST friday
-    end = 1644782400
-
-    masterchef = strategist.deploy(
-        MasterChef, reward_token.address, per_second, start, end
-    )
-    chain.sleep(1)
-    chain.mine(1)
-
-    # add the tokens we're interested in
-    masterchef.add(500, wftm.address)
-    chain.sleep(1)
-    chain.mine(1)
-    masterchef.add(500, weth.address)
-    chain.sleep(1)
-    chain.mine(1)
-    masterchef.add(500, wbtc.address)
-    chain.sleep(1)
-    chain.mine(1)
-    masterchef.add(500, dai.address)
-    chain.sleep(1)
-    chain.mine(1)
-    masterchef.add(500, usdc.address)
-    chain.sleep(1)
-    chain.mine(1)
-    masterchef.add(500, mim.address)
-    chain.sleep(1)
-    chain.mine(1)
 
     # transfer ownership of the token to our masterchef
-    owner = accounts.at("0x8881AcF21D569ec8182441eD381ff1945BFeC5E5", force=True)
+    masterchef = Contract("0xa7821C3e9fC1bF961e280510c471031120716c3d")
     usdc_whale = accounts.at("0xE04C26444d37fE103B9cc8033c99b09D47056f51", force=True)
-    reward_token.mint(usdc_whale, 500_000e18, {"from": owner})
-    reward_token.transferOwnership(masterchef.address, {"from": owner})
+    reward_token.mint(usdc_whale, 500_000e18, {"from": masterchef})
     chain.sleep(1)
     chain.mine(1)
 
@@ -289,7 +259,6 @@ def strategy(
     strategy = strategist.deploy(
         Strategy0xDAOStaker,
         vault,
-        masterchef,
         pid,
         strategy_name,
     )

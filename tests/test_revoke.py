@@ -19,6 +19,7 @@ def test_revoke_strategy_from_vault(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
 
     # wait a day
@@ -31,6 +32,7 @@ def test_revoke_strategy_from_vault(
     vault.revokeStrategy(strategy.address, {"from": gov})
 
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
     vaultAssets_after_revoke = vault.totalAssets()

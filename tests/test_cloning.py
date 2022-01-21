@@ -26,24 +26,19 @@ def test_cloning(
             strategist,
             rewards,
             keeper,
-            masterchef,
             pid,
             strategy_name,
             {"from": gov},
         )
 
     # Shouldn't be able use mismatched token and pid
-    if pid == 5:
-        wrong_pid = 3
-    else:
-        wrong_pid = pid + 1
+    wrong_pid = pid + 1
     with brownie.reverts():
         strategy.clone0xDAOStaker(
             vault,
             strategist,
             rewards,
             keeper,
-            masterchef,
             wrong_pid,
             strategy_name,
             {"from": gov},
@@ -55,7 +50,6 @@ def test_cloning(
         strategist,
         rewards,
         keeper,
-        masterchef,
         pid,
         strategy_name,
         {"from": gov},
@@ -69,7 +63,6 @@ def test_cloning(
             strategist,
             rewards,
             keeper,
-            masterchef,
             pid,
             strategy_name,
             {"from": gov},
@@ -82,7 +75,6 @@ def test_cloning(
             strategist,
             rewards,
             keeper,
-            masterchef,
             pid,
             strategy_name,
             {"from": gov},
@@ -90,6 +82,7 @@ def test_cloning(
 
     # revoke and send all funds back to vault
     vault.revokeStrategy(strategy, {"from": gov})
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
 
     # attach our new strategy and approve it on the proxy
@@ -119,6 +112,7 @@ def test_cloning(
     chain.mine(1)
 
     # harvest after a day, store new asset amount
+    newStrategy.setDoHealthCheck(False, {"from": gov})
     newStrategy.harvest({"from": gov})
     new_assets_dai = vault.totalAssets()
     # we can't use strategyEstimated Assets because the profits are sent to the vault
@@ -133,6 +127,11 @@ def test_cloning(
             / (newStrategy.estimatedTotalAssets())
         ),
     )
+
+    apr = ((new_assets_dai - old_assets_dai) * (365)) / (
+        newStrategy.estimatedTotalAssets()
+    )
+    assert apr > 20000
 
     # simulate a day of waiting for share price to bump back up
     chain.sleep(86400)

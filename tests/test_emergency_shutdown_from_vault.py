@@ -18,6 +18,7 @@ def test_emergency_shutdown_from_vault(
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -25,6 +26,7 @@ def test_emergency_shutdown_from_vault(
     chain.sleep(86400)
 
     chain.mine(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
 
     # simulate one day of earnings
@@ -33,6 +35,7 @@ def test_emergency_shutdown_from_vault(
     # set emergency and exit, then confirm that the strategy has no funds
     vault.setEmergencyShutdown(True, {"from": gov})
     chain.sleep(1)
+    strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
     chain.sleep(1)
     assert math.isclose(strategy.estimatedTotalAssets(), 0, abs_tol=5)
