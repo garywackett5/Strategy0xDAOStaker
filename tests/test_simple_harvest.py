@@ -38,16 +38,16 @@ def test_simple_harvest(
     # simulate 12 hours of earnings
     chain.sleep(43200)
     chain.mine(1)
-    
+
     # check on our pending rewards
     pending = masterchef.pendingOXD(pid, strategy, {"from": whale})
-    print("This is our pending reward after 12 hours: $" + str(pending/1e18))
+    print("This is our pending reward after 12 hours: $" + str(pending / 1e18))
 
     # harvest, store new asset amount. Turn off health check since we are only ones in this pool.
     chain.sleep(1)
     tx = strategy.harvest({"from": gov})
     chain.sleep(1)
-    
+
     new_assets = vault.totalAssets()
     # confirm we made money, or at least that we have about the same
     assert new_assets >= old_assets

@@ -74,9 +74,9 @@ def token(pid, wftm, weth, wbtc, dai, usdc, mim):
 def whale(accounts, pid):
     # Totally in it for the tech
     # Update this with a large holder of your want token (the largest EOA holder of LP)
-    if pid == 2: # WBTC
+    if pid == 2:  # WBTC
         whale = accounts.at("0x38aCa5484B8603373Acc6961Ecd57a6a594510A3", force=True)
-    elif pid == 3: # DAI
+    elif pid == 3:  # DAI
         whale = accounts.at("0x8D9AED9882b4953a0c9fa920168fa1FDfA0eBE75", force=True)
     else:
         whale = accounts.at("0xE04C26444d37fE103B9cc8033c99b09D47056f51", force=True)
@@ -86,11 +86,11 @@ def whale(accounts, pid):
 # this is the amount of funds we have our whale deposit. adjust this as needed based on their wallet balance
 @pytest.fixture(scope="module")
 def amount(token, pid):
-    if pid == 2: # WBTC
+    if pid == 2:  # WBTC
         amount = 100 * (10 ** token.decimals())
-    elif pid == 1: # WETH
+    elif pid == 1:  # WETH
         amount = 1000 * (10 ** token.decimals())
-    else: # stables and WFTM
+    else:  # stables and WFTM
         amount = 5_000_000 * (10 ** token.decimals())
     yield amount
 
@@ -106,7 +106,7 @@ def other_vault_strategy():
 
 @pytest.fixture(scope="module")
 def reward_token(accounts):
-    reward_token = Contract("0xc165d941481e68696f43EE6E99BFB2B23E0E3114")    
+    reward_token = Contract("0xc165d941481e68696f43EE6E99BFB2B23E0E3114")
     yield reward_token
 
 
@@ -205,14 +205,16 @@ def masterchef(
     accounts,
 ):
     # make sure to include all constructor parameters needed here
-    per_second = 1e18 # will be 1000e18 in real life, but that's too high for only us in the pool (health check fails)
-    start = 1642795200 # 3pm EST friday
+    per_second = 1e18  # will be 1000e18 in real life, but that's too high for only us in the pool (health check fails)
+    start = 1642795200  # 3pm EST friday
     end = 1644782400
-    
-    masterchef = strategist.deploy(MasterChef, reward_token.address, per_second, start, end)
+
+    masterchef = strategist.deploy(
+        MasterChef, reward_token.address, per_second, start, end
+    )
     chain.sleep(1)
     chain.mine(1)
-    
+
     # add the tokens we're interested in
     masterchef.add(500, wftm.address)
     chain.sleep(1)
@@ -232,7 +234,7 @@ def masterchef(
     masterchef.add(500, mim.address)
     chain.sleep(1)
     chain.mine(1)
-    
+
     # transfer ownership of the token to our masterchef
     owner = accounts.at("0x8881AcF21D569ec8182441eD381ff1945BFeC5E5", force=True)
     usdc_whale = accounts.at("0xE04C26444d37fE103B9cc8033c99b09D47056f51", force=True)
@@ -240,15 +242,25 @@ def masterchef(
     reward_token.transferOwnership(masterchef.address, {"from": owner})
     chain.sleep(1)
     chain.mine(1)
-    
+
     # mint some tokens to our USDC whale, with USDC add liquidity. $1 per 0XD, because why not?
     router = Contract("0xF491e7B69E4244ad4002BC14e878a34207E38c29")
     usdc.approve(router, 2 ** 256 - 1, {"from": usdc_whale})
     reward_token.approve(router, 2 ** 256 - 1, {"from": usdc_whale})
-    router.addLiquidity(usdc.address, reward_token.address, 500_000e6, 500_000e18, 495_000e6, 495_000e18, usdc_whale, 2 ** 256 - 1, {"from": usdc_whale})
+    router.addLiquidity(
+        usdc.address,
+        reward_token.address,
+        500_000e6,
+        500_000e18,
+        495_000e6,
+        495_000e18,
+        usdc_whale,
+        2 ** 256 - 1,
+        {"from": usdc_whale},
+    )
     spooky_lp = Contract("0xD5fa400a24EB2EA55BC5Bd29c989E70fbC626FfF")
     assert spooky_lp.balanceOf(usdc_whale) > 0
-    
+
     # sleep a day so we're into the farming time
     chain.sleep(86400)
     yield masterchef
