@@ -458,7 +458,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
         }
 
         // trigger if we have enough credit
-        if (vault.creditAvailable() > minHarvestCredit) {
+        if (vault.creditAvailable() >= minHarvestCredit) {
             return true;
         }
 

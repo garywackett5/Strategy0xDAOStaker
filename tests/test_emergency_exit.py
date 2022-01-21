@@ -133,3 +133,37 @@ def test_emergency_exit_with_no_gain_or_loss(
     # withdraw and confirm we made money, accounting for all of the funds we lost lol
     vault.withdraw({"from": whale})
     assert token.balanceOf(whale) + amount + whale_to_give >= startingWhale
+
+def test_emergency_withdraw(
+    gov,
+    token,
+    vault,
+    whale,
+    strategy,
+    chain,
+    amount,
+):
+    ## deposit to the vault after approving
+    startingWhale = token.balanceOf(whale)
+    token.approve(vault, 2 ** 256 - 1, {"from": whale})
+    vault.deposit(amount, {"from": whale})
+    chain.sleep(1)
+    strategy.harvest({"from": gov})
+    chain.sleep(1)
+
+    # simulate 1 day of earnings
+    chain.sleep(86400)
+    chain.mine(1)
+    chain.sleep(1)
+    strategy.harvest({"from": gov})
+    chain.sleep(1)
+
+    # set emergency withdraw
+    strategy.emergencyWithdraw({"from": gov})
+    chain.sleep(1)
+
+    # withdraw and confirm we made money
+    vault.withdraw({"from": whale})
+    assert token.balanceOf(whale) >= startingWhale
+
+
