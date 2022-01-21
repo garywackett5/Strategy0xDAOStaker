@@ -38,7 +38,7 @@ def test_cloning(
     else:
         wrong_pid = pid + 1
     with brownie.reverts():
-        strategy.initialize(
+        strategy.clone0xDAOStaker(
             vault,
             strategist,
             rewards,
