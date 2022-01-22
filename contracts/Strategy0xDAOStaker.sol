@@ -90,7 +90,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
     ICurveFi internal constant mimPool =
         ICurveFi(0x2dd7C9371965472E5A5fD28fbE165007c61439E1); // Curve's MIM-USDC-USDT pool
     ICurveFi internal constant daiPool =
-        ICurveFi(0x0fa949783947Bf6c1b171DB13AEACBB488845B3f); // Curve's Geist USDC-DAI-USDT pool
+        ICurveFi(0x27E611FD27b276ACbd5Ffd632E5eAEBEC9761E40); // Curve's USDC-DAI pool
 
     // tokens
     IERC20 internal constant wftm =

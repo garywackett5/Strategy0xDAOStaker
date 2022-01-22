@@ -10,7 +10,7 @@ def isolation(fn_isolation):
 # this is the pool ID that we are staking for. 1-6, wftm-mim
 @pytest.fixture(scope="module")
 def pid():
-    pid = 1
+    pid = 4
     yield pid
 
 
@@ -74,7 +74,7 @@ def token(pid, wftm, weth, wbtc, dai, usdc, mim):
 def whale(accounts, pid):
     # Totally in it for the tech
     # Update this with a large holder of your want token (the largest EOA holder of LP)
-    if pid == 2:  # WBTC
+    if pid == 3:  # WBTC
         whale = accounts.at("0x38aCa5484B8603373Acc6961Ecd57a6a594510A3", force=True)
     elif pid == 5:  # DAI
         whale = accounts.at("0x8D9AED9882b4953a0c9fa920168fa1FDfA0eBE75", force=True)
@@ -87,13 +87,13 @@ def whale(accounts, pid):
 @pytest.fixture(scope="module")
 def amount(token, pid):  # use today's exchange rates to have similar $$ amounts
     if pid == 2:  # WBTC
-        amount = 382 * (10 ** token.decimals())
+        amount = 380 * (10 ** token.decimals())
     elif pid == 1:  # WETH
-        amount = 5196 * (10 ** token.decimals())
+        amount = 5000 * (10 ** token.decimals())
     elif pid == 0:  # WFTM
         amount = 5769230 * (10 ** token.decimals())
     else:  # stables
-        amount = 15_000_000 * (10 ** token.decimals())
+        amount = 15000000 * (10 ** token.decimals())
     yield amount
 
 
@@ -210,28 +210,8 @@ def masterchef(
 
     # transfer ownership of the token to our masterchef
     masterchef = Contract("0xa7821C3e9fC1bF961e280510c471031120716c3d")
-    usdc_whale = accounts.at("0xE04C26444d37fE103B9cc8033c99b09D47056f51", force=True)
-    reward_token.mint(usdc_whale, 500_000e18, {"from": masterchef})
     chain.sleep(1)
     chain.mine(1)
-
-    # mint some tokens to our USDC whale, with USDC add liquidity. $1 per 0XD, because why not?
-    router = Contract("0xF491e7B69E4244ad4002BC14e878a34207E38c29")
-    usdc.approve(router, 2 ** 256 - 1, {"from": usdc_whale})
-    reward_token.approve(router, 2 ** 256 - 1, {"from": usdc_whale})
-    router.addLiquidity(
-        usdc.address,
-        reward_token.address,
-        500_000e6,
-        500_000e18,
-        495_000e6,
-        495_000e18,
-        usdc_whale,
-        2 ** 256 - 1,
-        {"from": usdc_whale},
-    )
-    spooky_lp = Contract("0xD5fa400a24EB2EA55BC5Bd29c989E70fbC626FfF")
-    assert spooky_lp.balanceOf(usdc_whale) > 0
 
     # sleep a day so we're into the farming time
     chain.sleep(86400)
