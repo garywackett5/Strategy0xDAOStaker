@@ -4,7 +4,7 @@
 // Feel free to change this version of Solidity. We support >=0.6.0 <0.7.0;
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
-//gary's fork
+// Gary's Fork
 // These are the core Yearn libraries
 import {
     BaseStrategy,
@@ -49,6 +49,13 @@ interface IUniswapV2Router02 {
         returns (uint256[] memory amounts);
 }
 
+interface IXboo is IERC20 {
+    function xBOOForBOO(uint256) external view returns (uint256);
+    function BOOForxBOO(uint256) external view returns (uint256);
+    function enter(uint256) external;
+    function leave(uint256) external;
+}
+
 interface ChefLike {
     function deposit(uint256 _pid, uint256 _amount) external;
 
@@ -82,29 +89,21 @@ contract Strategy0xDAOStaker is BaseStrategy {
     ChefLike public constant masterchef =
         ChefLike(0xa7821C3e9fC1bF961e280510c471031120716c3d);
     IERC20 public constant emissionToken =
-        IERC20(0xc165d941481e68696f43EE6E99BFB2B23E0E3114); // the token we receive for staking, 0XD
+        IERC20(0xc165d941481e68696f43EE6E99BFB2B23E0E3114); // the token we receive for staking, OXD
 
     // swap stuff
     address internal constant spookyRouter =
         0xF491e7B69E4244ad4002BC14e878a34207E38c29;
-    ICurveFi internal constant mimPool =
-        ICurveFi(0x2dd7C9371965472E5A5fD28fbE165007c61439E1); // Curve's MIM-USDC-USDT pool
-    ICurveFi internal constant daiPool =
-        ICurveFi(0x27E611FD27b276ACbd5Ffd632E5eAEBEC9761E40); // Curve's USDC-DAI pool
 
     // tokens
     IERC20 internal constant wftm =
         IERC20(0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83);
-    IERC20 internal constant weth =
-        IERC20(0x74b23882a30290451A17c44f4F05243b6b58C76d);
-    IERC20 internal constant wbtc =
-        IERC20(0x321162Cd933E2Be498Cd2267a90534A804051b11);
-    IERC20 internal constant dai =
-        IERC20(0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E);
     IERC20 internal constant usdc =
-        IERC20(0x04068DA6C83AFCFA0e13ba15A6696662335D5B75);
-    IERC20 internal constant mim =
-        IERC20(0x82f0B8B456c1A451378467398982d4834b6829c1);
+        IERC20(0x04068DA6C83AFCFA0e13ba15A6696662335D5B75); 
+    IERC20 internal constant boo =
+        IERC20(0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE);    
+    IXboo internal constant xboo =
+        IXboo(0xa48d959AE2E88f1dAA7D5F611E01908106dE7598);
 
     uint256 public pid; // the pool ID we are staking for
 
@@ -198,10 +197,8 @@ contract Strategy0xDAOStaker is BaseStrategy {
         minHarvestCredit = type(uint256).max;
 
         // add approvals on all tokens
-        usdc.approve(spookyRouter, type(uint256).max);
-        usdc.approve(address(mimPool), type(uint256).max);
-        usdc.approve(address(daiPool), type(uint256).max);
-        want.approve(address(masterchef), type(uint256).max);
+        xboo.approve(address(masterchef), type(uint256).max);
+        boo.approve(address(xboo), type(uint256).max);
         emissionToken.approve(spookyRouter, type(uint256).max);
     }
 
@@ -211,19 +208,27 @@ contract Strategy0xDAOStaker is BaseStrategy {
         return stratName;
     }
 
+    // balance of boo in strat - should be zero
     function balanceOfWant() public view returns (uint256) {
         return want.balanceOf(address(this));
     }
 
+    // balance of xboo in strat (in boo) - should be zero
+    function balanceOfXbooInWant() public view returns (uint256) {
+        return xboo.xBOOForBOO(xboo.balanceOf(address(this)));
+    }
+
+    // balance of xboo in masterchef (in boo)
     function balanceOfStaked() public view returns (uint256) {
         (uint256 stakedInMasterchef, ) =
             masterchef.userInfo(pid, address(this));
+        stakedInMasterchef = xboo.xBOOForBOO(stakedInMasterchef);
         return stakedInMasterchef;
     }
 
     function estimatedTotalAssets() public view override returns (uint256) {
         // look at our staked tokens and any free tokens sitting in the strategy
-        return balanceOfStaked().add(balanceOfWant());
+        return balanceOfStaked().add(balanceOfWant()).add(balanceOfXbooInWant());
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
@@ -253,18 +258,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
         uint256 debt = vault.strategies(address(this)).totalDebt;
         uint256 amountToFree;
 
-        // this would only happen if the masterchef somehow lost funds or was drained
-        uint256 masterchefHoldings = want.balanceOf(address(masterchef));
-        uint256 stakedBalance = balanceOfStaked();
-        if (masterchefHoldings < stakedBalance) {
-            amountToFree = masterchefHoldings;
-            liquidatePosition(amountToFree);
-            _debtPayment = balanceOfWant();
-            _loss = stakedBalance.sub(_debtPayment);
-            return (_profit, _loss, _debtPayment);
-        }
-
-        if (assets > debt) {
+        if (assets >= debt) {
             _debtPayment = _debtOutstanding;
             _profit = assets - debt;
 
@@ -305,7 +299,9 @@ contract Strategy0xDAOStaker is BaseStrategy {
         uint256 toInvest = balanceOfWant();
         // stake only if we have something to stake
         if (toInvest > 0) {
-            masterchef.deposit(pid, toInvest);
+            xboo.enter(toInvest);
+            uint256 xbooToInvest = xboo.balanceOf(address(this));
+            masterchef.deposit(pid, xbooToInvest);
         }
     }
 
@@ -314,19 +310,29 @@ contract Strategy0xDAOStaker is BaseStrategy {
         override
         returns (uint256 _liquidatedAmount, uint256 _loss)
     {
-        uint256 totalAssets = want.balanceOf(address(this));
-        if (_amountNeeded > totalAssets) {
-            uint256 amountToFree = _amountNeeded.sub(totalAssets);
+        uint256 balanceOfBoo = want.balanceOf(address(this));
+        if (_amountNeeded > balanceOfBoo) {
+            uint256 amountToFree = _amountNeeded.sub(balanceOfBoo);
+            uint256 amountToFreeInXboo = xboo.BOOForxBOO(amountToFree);
+            uint256 balanceOfXboo = xboo.balanceOf(address(this));
 
-            (uint256 deposited, ) =
-                ChefLike(masterchef).userInfo(pid, address(this));
-            if (deposited < amountToFree) {
-                amountToFree = deposited;
-            }
-            if (deposited > 0) {
-                ChefLike(masterchef).withdraw(pid, amountToFree);
+            if (balanceOfXboo < amountToFreeInXboo) {
+                uint256 newAmountToFreeInXboo = amountToFreeInXboo.sub(balanceOfXboo);
+
+                (uint256 deposited, ) =
+                    ChefLike(masterchef).userInfo(pid, address(this));
+                if (deposited < newAmountToFreeInXboo) {
+                    newAmountToFreeInXboo = deposited;
+                }
+
+                if (deposited > 0) {
+                    ChefLike(masterchef).withdraw(pid, newAmountToFreeInXboo);
+                    balanceOfXboo = xboo.balanceOf(address(this));
+                }
             }
 
+            xboo.leave(Math.min(amountToFreeInXboo, balanceOfXboo));
+          
             _liquidatedAmount = want.balanceOf(address(this));
         } else {
             _liquidatedAmount = _amountNeeded;
@@ -361,10 +367,12 @@ contract Strategy0xDAOStaker is BaseStrategy {
 
     // sell from reward token to want
     function _sell(uint256 _amount) internal {
-        // sell our emission token for usdc
-        address[] memory emissionTokenPath = new address[](2);
+        // sell our emission token for boo
+        address[] memory emissionTokenPath = new address[](4);
         emissionTokenPath[0] = address(emissionToken);
         emissionTokenPath[1] = address(usdc);
+        emissionTokenPath[2] = address(wftm);
+        emissionTokenPath[3] = address(boo);
 
         IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(
             _amount,
@@ -374,60 +382,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
             block.timestamp
         );
 
-        if (address(want) == address(usdc)) {
-            return;
-        }
-
-        // sell our USDC for want
-        uint256 usdcBalance = usdc.balanceOf(address(this));
-        if (address(want) == address(wftm)) {
-            // sell our usdc for want with spooky
-            address[] memory usdcSwapPath = new address[](2);
-            usdcSwapPath[0] = address(usdc);
-            usdcSwapPath[1] = address(want);
-
-            IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(
-                usdcBalance,
-                uint256(0),
-                usdcSwapPath,
-                address(this),
-                block.timestamp
-            );
-        } else if (address(want) == address(weth)) {
-            // sell our usdc for want with spooky
-            address[] memory usdcSwapPath = new address[](3);
-            usdcSwapPath[0] = address(usdc);
-            usdcSwapPath[1] = address(wftm);
-            usdcSwapPath[2] = address(weth);
-
-            IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(
-                usdcBalance,
-                uint256(0),
-                usdcSwapPath,
-                address(this),
-                block.timestamp
-            );
-        } else if (address(want) == address(dai)) {
-            // sell our usdc for want with curve
-            daiPool.exchange_underlying(1, 0, usdcBalance, 0);
-        } else if (address(want) == address(mim)) {
-            // sell our usdc for want with curve
-            mimPool.exchange(2, 0, usdcBalance, 0);
-        } else if (address(want) == address(wbtc)) {
-            // sell our usdc for want with spooky
-            address[] memory usdcSwapPath = new address[](3);
-            usdcSwapPath[0] = address(usdc);
-            usdcSwapPath[1] = address(wftm);
-            usdcSwapPath[2] = address(wbtc);
-
-            IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(
-                usdcBalance,
-                uint256(0),
-                usdcSwapPath,
-                address(this),
-                block.timestamp
-            );
-        }
+        
     }
 
     function protectedTokens()
