@@ -103,6 +103,7 @@ def test_emergency_exit_with_no_gain_or_loss(
     chain,
     amount,
     pid,
+    xboo,
 ):
     ## deposit to the vault after approving. turn off health check since we're doing weird shit
     strategy.setDoHealthCheck(False, {"from": gov})
@@ -116,9 +117,9 @@ def test_emergency_exit_with_no_gain_or_loss(
 
     # send away all funds, will need to alter this based on strategy
     strategy.emergencyWithdraw({"from": gov})
-    to_send = token.balanceOf(strategy)
+    to_send = xboo.balanceOf(strategy)
     print("Balance of Vault", to_send)
-    token.transfer(gov, to_send, {"from": strategy})
+    xboo.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
 
     # have our whale send in exactly our debtOutstanding

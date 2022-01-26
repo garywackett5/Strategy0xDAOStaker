@@ -18,6 +18,7 @@ def test_odds_and_ends(
     Strategy0xDAOStaker,
     amount,
     strategy_name,
+    xboo,
 ):
 
     ## deposit to the vault after approving. turn off health check before each harvest since we're doing weird shit
@@ -32,9 +33,9 @@ def test_odds_and_ends(
 
     # send away all funds, will need to alter this based on strategy
     strategy.emergencyWithdraw({"from": gov})
-    to_send = token.balanceOf(strategy)
+    to_send = xboo.balanceOf(strategy)
     print("Balance of Vault", to_send)
-    token.transfer(gov, to_send, {"from": strategy})
+    xboo.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
 
     chain.sleep(86400 * 4)  # fast forward so our min delay is passed
@@ -113,6 +114,7 @@ def test_odds_and_ends_2(
     strategist_ms,
     pid,
     amount,
+    xboo,
 ):
 
     ## deposit to the vault after approving. turn off health check since we're doing weird shit
@@ -127,9 +129,9 @@ def test_odds_and_ends_2(
 
     # send away all funds, will need to alter this based on strategy
     strategy.emergencyWithdraw({"from": gov})
-    to_send = token.balanceOf(strategy)
+    to_send = xboo.balanceOf(strategy)
     print("Balance of Vault", to_send)
-    token.transfer(gov, to_send, {"from": strategy})
+    xboo.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
 
     strategy.setEmergencyExit({"from": gov})
@@ -295,6 +297,7 @@ def test_odds_and_ends_rekt(
     strategist_ms,
     pid,
     amount,
+    xboo,
 ):
     ## deposit to the vault after approving. turn off health check since we're doing weird shit
     strategy.setDoHealthCheck(False, {"from": gov})
@@ -308,9 +311,9 @@ def test_odds_and_ends_rekt(
 
     # send away all funds, will need to alter this based on strategy
     strategy.emergencyWithdraw({"from": gov})
-    to_send = token.balanceOf(strategy)
+    to_send = xboo.balanceOf(strategy)
     print("Balance of Vault", to_send)
-    token.transfer(gov, to_send, {"from": strategy})
+    xboo.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
     assert vault.strategies(strategy)[2] == 10000
     print("Strategy Total Debt, this should be >0:", vault.strategies(strategy)[6])
@@ -337,6 +340,7 @@ def test_odds_and_ends_liquidate_rekt(
     strategist_ms,
     pid,
     amount,
+    xboo,
 ):
     ## deposit to the vault after approving. turn off health check since we're doing weird shit
     strategy.setDoHealthCheck(False, {"from": gov})
@@ -350,9 +354,9 @@ def test_odds_and_ends_liquidate_rekt(
 
     # send away all funds, will need to alter this based on strategy
     strategy.emergencyWithdraw({"from": gov})
-    to_send = token.balanceOf(strategy)
+    to_send = xboo.balanceOf(strategy)
     print("Balance of Vault", to_send)
-    token.transfer(gov, to_send, {"from": strategy})
+    xboo.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
 
     # we can also withdraw from an empty vault as well, but make sure we're okay with losing 100%
