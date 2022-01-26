@@ -7,17 +7,17 @@ def isolation(fn_isolation):
     pass
 
 
-# this is the pool ID that we are staking for. 1-6, wftm-mim
+# this is the pool ID that we are staking for. 7, xboo
 @pytest.fixture(scope="module")
 def pid():
-    pid = 4
+    pid = 7
     yield pid
 
 
 # this is the name we want to give our strategy
 @pytest.fixture(scope="module")
 def strategy_name():
-    strategy_name = "Strategy0xDAOStaker"
+    strategy_name = "Strategy0xDAOStakerBoo"
     yield strategy_name
 
 
@@ -51,59 +51,38 @@ def mim():
     yield Contract("0x82f0B8B456c1A451378467398982d4834b6829c1")
 
 
+@pytest.fixture(scope="module")
+def boo():
+    yield Contract("0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE")
+
+
+@pytest.fixture(scope="module")
+def xboo():
+    yield Contract("0xa48d959AE2E88f1dAA7D5F611E01908106dE7598")
+
+
 # Define relevant tokens and contracts in this section
 @pytest.fixture(scope="module")
-def token(pid, wftm, weth, wbtc, dai, usdc, mim):
-    # this should be the address of the ERC-20 used by the strategy/vault
-    if pid == 1:
-        token = wftm
-    elif pid == 2:
-        token = weth
-    elif pid == 3:
-        token = wbtc
-    elif pid == 4:
-        token = usdc
-    elif pid == 5:
-        token = dai
-    elif pid == 6:
-        token = mim
-    yield token
+def token(boo):
+    yield boo
 
 
 @pytest.fixture(scope="module")
-def whale(accounts, pid):
-    # Totally in it for the tech
+def whale(accounts):
     # Update this with a large holder of your want token (the largest EOA holder of LP)
-    if pid == 3:  # WBTC
-        whale = accounts.at("0x38aCa5484B8603373Acc6961Ecd57a6a594510A3", force=True)
-    elif pid == 5:  # DAI
-        whale = accounts.at("0x8D9AED9882b4953a0c9fa920168fa1FDfA0eBE75", force=True)
-    else:
-        whale = accounts.at("0xE04C26444d37fE103B9cc8033c99b09D47056f51", force=True)
+    whale = accounts.at("0x95478C4F7D22D1048F46100001c2C69D2BA57380", force=True)
     yield whale
 
 
 # this is the amount of funds we have our whale deposit. adjust this as needed based on their wallet balance
 @pytest.fixture(scope="module")
-def amount(token, pid):  # use today's exchange rates to have similar $$ amounts
-    if pid == 2:  # WBTC
-        amount = 380 * (10 ** token.decimals())
-    elif pid == 1:  # WETH
-        amount = 5000 * (10 ** token.decimals())
-    elif pid == 0:  # WFTM
-        amount = 5769230 * (10 ** token.decimals())
-    else:  # stables
-        amount = 15000000 * (10 ** token.decimals())
+def amount(token):  # use today's exchange rates to have similar $$ amounts
+    amount = 15000 * (10 ** token.decimals())
     yield amount
 
 
 # Only worry about changing things above this line, unless you want to make changes to the vault or strategy.
 # ----------------------------------------------------------------------- #
-
-
-@pytest.fixture(scope="module")
-def other_vault_strategy():
-    yield Contract("0xfF8bb7261E4D51678cB403092Ae219bbEC52aa51")
 
 
 @pytest.fixture(scope="module")
@@ -213,8 +192,6 @@ def masterchef(
     chain.sleep(1)
     chain.mine(1)
 
-    # sleep a day so we're into the farming time
-    chain.sleep(86400)
     yield masterchef
 
 
@@ -247,7 +224,7 @@ def strategy(
     vault.setManagementFee(0, {"from": gov})
     # add our new strategy
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
-    strategy.setHealthCheck(healthCheck, {"from": gov})
+    # strategy.setHealthCheck(healthCheck, {"from": gov}) - set in strat
     strategy.setDoHealthCheck(True, {"from": gov})
     yield strategy
 

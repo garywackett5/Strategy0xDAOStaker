@@ -176,7 +176,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
         // make sure that we used the correct pid
         pid = _pid;
         (address poolToken, , , ) = masterchef.poolInfo(pid);
-        require(poolToken == address(want), "wrong pid");
+        require(poolToken == address(xboo), "wrong pid");
 
         // turn off our credit harvest trigger to start with
         minHarvestCredit = type(uint256).max;
@@ -358,7 +358,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
             emissionToken.balanceOf(address(this))
         );
         // send our total balance of xboo to the new strategy
-        xboo.safeTransfer(
+        xboo.transfer(
             _newStrategy,
             xboo.balanceOf(address(this))
         );
