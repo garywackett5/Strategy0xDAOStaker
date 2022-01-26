@@ -18,22 +18,6 @@ import {
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
-interface ICurveFi {
-    function exchange(
-        int128 from,
-        int128 to,
-        uint256 _from_amount,
-        uint256 _min_to_amount
-    ) external;
-
-    function exchange_underlying(
-        int128 from,
-        int128 to,
-        uint256 _from_amount,
-        uint256 _min_to_amount
-    ) external;
-}
-
 interface IUniswapV2Router02 {
     function swapExactTokensForTokens(
         uint256 amountIn,
@@ -49,6 +33,7 @@ interface IUniswapV2Router02 {
         returns (uint256[] memory amounts);
 }
 
+// boo:xboo ratios, enter = "Locks Boo and mints xBoo", leave = "Unlocks the staked + gained Boo, and burns xBoo"
 interface IXboo is IERC20 {
     function xBOOForBOO(uint256) external view returns (uint256);
     function BOOForxBOO(uint256) external view returns (uint256);
@@ -208,12 +193,12 @@ contract Strategy0xDAOStaker is BaseStrategy {
         return stratName;
     }
 
-    // balance of boo in strat - should be zero
+    // balance of boo in strat - should be zero most of the time
     function balanceOfWant() public view returns (uint256) {
         return want.balanceOf(address(this));
     }
 
-    // balance of xboo in strat (in boo) - should be zero
+    // balance of xboo in strat (in boo) - should be zero most of the time
     function balanceOfXbooInWant() public view returns (uint256) {
         return xboo.xBOOForBOO(xboo.balanceOf(address(this)));
     }
@@ -245,7 +230,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
         // claim our rewards
         masterchef.withdraw(pid, 0);
 
-        // if we have emissionToken to sell, then sell some of it
+        // if we have emissionToken (OXD) to sell, then sell all of it
         uint256 emissionTokenBalance = emissionToken.balanceOf(address(this));
         if (emissionTokenBalance > 0) {
             // sell our emissionToken
@@ -299,9 +284,10 @@ contract Strategy0xDAOStaker is BaseStrategy {
         uint256 toInvest = balanceOfWant();
         // stake only if we have something to stake
         if (toInvest > 0) {
+            // deposit our boo into xboo
             xboo.enter(toInvest);
-            uint256 xbooToInvest = xboo.balanceOf(address(this));
-            masterchef.deposit(pid, xbooToInvest);
+            // deposit xboo into masterchef
+            masterchef.deposit(pid, xboo.balanceOf(address(this)));
         }
     }
 
@@ -311,28 +297,37 @@ contract Strategy0xDAOStaker is BaseStrategy {
         returns (uint256 _liquidatedAmount, uint256 _loss)
     {
         uint256 balanceOfBoo = want.balanceOf(address(this));
-        if (_amountNeeded > balanceOfBoo) {
+        // if we need more boo than is already loose in the contract
+        if (balanceOfBoo < _amountNeeded) {
+            // boo needed beyond any boo that is already loose in the contract
             uint256 amountToFree = _amountNeeded.sub(balanceOfBoo);
+            // converts this amount into xboo
             uint256 amountToFreeInXboo = xboo.BOOForxBOO(amountToFree);
+            //any xboo that is already loose in the contract
             uint256 balanceOfXboo = xboo.balanceOf(address(this));
-
+            // if we need more xboo than is already loose in the contract
             if (balanceOfXboo < amountToFreeInXboo) {
+                // new amount of xboo needed after subtracting any xboo that is already loose in the contract
                 uint256 newAmountToFreeInXboo = amountToFreeInXboo.sub(balanceOfXboo);
 
                 (uint256 deposited, ) =
                     ChefLike(masterchef).userInfo(pid, address(this));
+                // if xboo deposited in masterchef is less than what we want, deposited becomes what we want (all)
                 if (deposited < newAmountToFreeInXboo) {
                     newAmountToFreeInXboo = deposited;
                 }
-
+                // stops us trying to withdraw if xboo deposited is zero
                 if (deposited > 0) {
                     ChefLike(masterchef).withdraw(pid, newAmountToFreeInXboo);
+                    // updating balanceOfXboo in preparation for when we leave xboo
                     balanceOfXboo = xboo.balanceOf(address(this));
                 }
             }
-
+            // leave = "Unlocks the staked Boo + gained Boo (which should be zero?), and burns xBoo"
+            // the lowest of these two options beause balanceOfXboo might be more than we need
             xboo.leave(Math.min(amountToFreeInXboo, balanceOfXboo));
-          
+
+            // this address' balance of boo
             _liquidatedAmount = want.balanceOf(address(this));
         } else {
             _liquidatedAmount = _amountNeeded;
@@ -344,6 +339,10 @@ contract Strategy0xDAOStaker is BaseStrategy {
         if (stakedBalance > 0) {
             masterchef.withdraw(pid, stakedBalance);
         }
+        uint256 balanceOfXboo = xboo.balanceOf(address(this));
+        if (balanceOfXboo > 0) {
+            xboo.leave(balanceOfXboo);
+        }
         return balanceOfWant();
     }
 
@@ -353,10 +352,15 @@ contract Strategy0xDAOStaker is BaseStrategy {
             masterchef.withdraw(pid, stakedBalance);
         }
 
-        // send our claimed emissionToken to the new strategy
+        // send our total balance of claimed emissionToken (OXD) to the new strategy
         emissionToken.safeTransfer(
             _newStrategy,
             emissionToken.balanceOf(address(this))
+        );
+        // send our total balance of xboo to the new strategy
+        xboo.safeTransfer(
+            _newStrategy,
+            xboo.balanceOf(address(this))
         );
     }
 
@@ -367,7 +371,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
 
     // sell from reward token to want
     function _sell(uint256 _amount) internal {
-        // sell our emission token for boo
+        // sell our emission token (OXD) for boo, via usdc and wftm
         address[] memory emissionTokenPath = new address[](4);
         emissionTokenPath[0] = address(emissionToken);
         emissionTokenPath[1] = address(usdc);
@@ -376,7 +380,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
 
         IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(
             _amount,
-            uint256(0),
+            uint256(0), // min out is zero so needs to be harvested using a secret mem pool
             emissionTokenPath,
             address(this),
             block.timestamp
