@@ -335,9 +335,10 @@ contract Strategy0xDAOStaker is BaseStrategy {
     }
 
     function liquidateAllPositions() internal override returns (uint256) {
-        uint256 stakedBalance = balanceOfStaked();
-        if (stakedBalance > 0) {
-            masterchef.withdraw(pid, stakedBalance);
+        (uint256 stakedInMasterchef, ) =
+            masterchef.userInfo(pid, address(this));
+        if (stakedInMasterchef > 0) {
+            masterchef.withdraw(pid, stakedInMasterchef);
         }
         uint256 balanceOfXboo = xboo.balanceOf(address(this));
         if (balanceOfXboo > 0) {
@@ -347,9 +348,10 @@ contract Strategy0xDAOStaker is BaseStrategy {
     }
 
     function prepareMigration(address _newStrategy) internal override {
-        uint256 stakedBalance = balanceOfStaked();
-        if (stakedBalance > 0) {
-            masterchef.withdraw(pid, stakedBalance);
+        (uint256 stakedInMasterchef, ) =
+            masterchef.userInfo(pid, address(this));
+        if (stakedInMasterchef > 0) {
+            masterchef.withdraw(pid, stakedInMasterchef);
         }
 
         // send our total balance of claimed emissionToken (OXD) to the new strategy
