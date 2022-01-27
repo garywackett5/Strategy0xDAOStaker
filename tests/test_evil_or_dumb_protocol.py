@@ -64,6 +64,7 @@ def test_protocol_half_rekt(
     pid,
     amount,
     masterchef,
+    xboo,
 ):
     ## deposit to the vault after approving.
     startingWhale = token.balanceOf(whale)
@@ -75,11 +76,11 @@ def test_protocol_half_rekt(
     chain.sleep(1)
 
     # send away all funds from the masterchef itself
-    to_send = token.balanceOf(masterchef) / 2
-    starting_chef = token.balanceOf(masterchef)
+    to_send = xboo.balanceOf(masterchef) / 2
+    starting_chef = xboo.balanceOf(masterchef)
     print("Balance of Vault", to_send)
-    token.transfer(gov, to_send, {"from": masterchef})
-    assert token.balanceOf(masterchef) < starting_chef
+    xboo.transfer(gov, to_send, {"from": masterchef})
+    assert xboo.balanceOf(masterchef) < starting_chef
 
     # turn off health check since we're doing weird shit
     strategy.setDoHealthCheck(False, {"from": gov})
@@ -171,6 +172,7 @@ def test_protocol_dumb_masterchef_dev(
     amount,
     masterchef,
     reward_token,
+    xboo,
 ):
     ## deposit to the vault after approving.
     startingWhale = token.balanceOf(whale)
@@ -189,10 +191,10 @@ def test_protocol_dumb_masterchef_dev(
     chain.sleep(1)
     chain.mine(1)
 
-    # try and add a duplicate pool to bork the contract. since our strategist deployed it, he is the owner.
+    # try and add a duplicate pool to bork the contract
     owner = Contract("0xa96D2F0978E317e7a97aDFf7b5A76F4600916021")
     with brownie.reverts():
-        masterchef.add(69, token, {"from": owner})
+        masterchef.add(69, xboo, {"from": owner})
     with brownie.reverts():
         masterchef.set(pid, 6900, {"from": owner})
 

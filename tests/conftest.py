@@ -86,6 +86,11 @@ def amount(token):  # use today's exchange rates to have similar $$ amounts
 
 
 @pytest.fixture(scope="module")
+def other_vault_strategy():
+    yield Contract("0xfF8bb7261E4D51678cB403092Ae219bbEC52aa51")
+
+    
+@pytest.fixture(scope="module")
 def reward_token(accounts):
     reward_token = Contract("0xc165d941481e68696f43EE6E99BFB2B23E0E3114")
     yield reward_token
