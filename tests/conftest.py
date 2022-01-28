@@ -199,6 +199,17 @@ def masterchef(
 
     yield masterchef
 
+@pytest.fixture(scope="function")
+def live_strategy(
+    Contract,
+):
+    yield Contract("0xA36c91E38bf24E9F2df358E47D4134a8894C6a4c")
+
+@pytest.fixture(scope="function")
+def live_vault(
+    Contract,
+):
+    yield Contract("0x0fBbf9848D969776a5Eb842EdAfAf29ef4467698")
 
 # replace the first value with the name of your strategy
 @pytest.fixture(scope="function")
