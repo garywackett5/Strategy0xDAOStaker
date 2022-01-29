@@ -12,6 +12,7 @@ def test_revoke_strategy_from_vault(
     chain,
     strategy,
     amount,
+    xboo,
 ):
 
     ## deposit to the vault after approving
@@ -41,7 +42,8 @@ def test_revoke_strategy_from_vault(
     assert vaultAssets_after_revoke >= vaultAssets_starting or math.isclose(
         vaultAssets_after_revoke, vaultAssets_starting, abs_tol=5
     )
-    assert strategy.estimatedTotalAssets() == 0
+    # ignore dust
+    assert strategy.estimatedTotalAssets() <= 100
     assert token.balanceOf(vault) >= vault_holdings_starting + strategy_starting
 
     # simulate a day of waiting for share price to bump back up

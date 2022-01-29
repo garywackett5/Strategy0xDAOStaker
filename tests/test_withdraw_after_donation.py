@@ -496,8 +496,8 @@ def test_withdraw_after_donation_7(
     strategy.setDoHealthCheck(False, {"from": gov})
     strategy.harvest({"from": gov})
 
-    # check everywhere to make sure we emptied out the strategy
-    assert strategy.estimatedTotalAssets() == 0
+    # check everywhere to make sure we emptied out the strategy and ignore dust
+    assert strategy.estimatedTotalAssets() <= 100
     assert token.balanceOf(strategy) == 0
     current_assets = vault.totalAssets()
 
@@ -507,8 +507,8 @@ def test_withdraw_after_donation_7(
     new_params = vault.strategies(strategy).dict()
 
     # assert that our strategy has no debt
-    assert new_params["totalDebt"] == 0
-    assert vault.totalDebt() == 0
+    assert new_params["totalDebt"] <= 100
+    assert vault.totalDebt() <= 100
 
     # sleep to allow share price to normalize
     chain.sleep(86400)
@@ -581,7 +581,7 @@ def test_withdraw_after_donation_8(
     strategy.harvest({"from": gov})
 
     # check everywhere to make sure we emptied out the strategy
-    assert strategy.estimatedTotalAssets() == 0
+    assert strategy.estimatedTotalAssets() <= 100
     assert token.balanceOf(strategy) == 0
     current_assets = vault.totalAssets()
 
@@ -591,8 +591,8 @@ def test_withdraw_after_donation_8(
     new_params = vault.strategies(strategy).dict()
 
     # assert that our strategy has no debt
-    assert new_params["totalDebt"] == 0
-    assert vault.totalDebt() == 0
+    assert new_params["totalDebt"] <= 100
+    assert vault.totalDebt() <= 100
 
     # sleep to allow share price to normalize
     chain.sleep(86400)
