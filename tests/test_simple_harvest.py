@@ -41,7 +41,7 @@ def test_simple_harvest(
     chain.mine(1)
 
     # check on our pending rewards
-    pending = masterchef.pendingOXD(pid, strategy, {"from": whale})
+    pending = masterchef.pendingReward(pid, strategy, {"from": whale})
     print(
         "This is our pending reward after 12 hours: $"
         + str(pending / (10 ** reward_token.decimals()))

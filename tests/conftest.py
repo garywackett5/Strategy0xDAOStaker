@@ -7,17 +7,17 @@ def isolation(fn_isolation):
     pass
 
 
-# this is the pool ID that we are staking for. 7, xboo
+# this is the pool ID that we are staking for. 21, hec
 @pytest.fixture(scope="module")
 def pid():
-    pid = 7
+    pid = 21
     yield pid
 
 
 # this is the name we want to give our strategy
 @pytest.fixture(scope="module")
 def strategy_name():
-    strategy_name = "Strategy0xDAOStakerBoo"
+    strategy_name = "StrategyHECStakerBoo"
     yield strategy_name
 
 
@@ -92,12 +92,12 @@ def other_vault_strategy():
     
 @pytest.fixture(scope="module")
 def reward_token(accounts):
-    reward_token = Contract("0xc165d941481e68696f43EE6E99BFB2B23E0E3114")
+    reward_token = Contract("0x5C4FDfc5233f935f20D2aDbA572F770c2E377Ab0")
     yield reward_token
 
 
 @pytest.fixture(scope="module")
-def healthCheck():
+def health_check():
     yield Contract("0xf13Cd6887C62B5beC145e30c38c4938c5E627fe0")
 
 
@@ -174,41 +174,27 @@ def vault(pm, gov, rewards, guardian, management, token, chain):
 
 # deploy the masterchef from 0xDAO's repo
 @pytest.fixture(scope="function")
-def masterchef(
-    MasterChef,
-    strategist,
-    keeper,
-    vault,
-    gov,
-    chain,
-    reward_token,
-    wftm,
-    weth,
-    wbtc,
-    dai,
-    usdc,
-    mim,
-    accounts,
-):
-    # make sure to include all constructor parameters needed here
-
-    # transfer ownership of the token to our masterchef
-    masterchef = Contract("0xa7821C3e9fC1bF961e280510c471031120716c3d")
-    chain.sleep(1)
-    chain.mine(1)
-
-    yield masterchef
+def masterchef():
+    yield Contract("0x2352b745561e7e6FCD03c093cE7220e3e126ace0")
 
 @pytest.fixture(scope="function")
-def live_strategy(
-    Contract,
-):
+def emission_token():
+    yield Contract("0x5C4FDfc5233f935f20D2aDbA572F770c2E377Ab0")
+
+@pytest.fixture(scope="function")
+def swap_first_step(dai):
+    yield dai
+
+@pytest.fixture(scope="function")
+def auto_sell():
+    yield True
+
+@pytest.fixture(scope="function")
+def live_strategy():
     yield Contract("0xA36c91E38bf24E9F2df358E47D4134a8894C6a4c")
 
 @pytest.fixture(scope="function")
-def live_vault(
-    Contract,
-):
+def live_vault():
     yield Contract("0x0fBbf9848D969776a5Eb842EdAfAf29ef4467698")
 
 # replace the first value with the name of your strategy
@@ -221,12 +207,15 @@ def strategy(
     gov,
     guardian,
     token,
-    healthCheck,
+    health_check,
     chain,
     pid,
     strategy_name,
     strategist_ms,
     masterchef,
+    emission_token,
+    swap_first_step,
+    auto_sell,
 ):
     # make sure to include all constructor parameters needed here
     strategy = strategist.deploy(
@@ -234,6 +223,10 @@ def strategy(
         vault,
         pid,
         strategy_name,
+        masterchef,
+        emission_token,
+        swap_first_step,
+        auto_sell,
     )
     strategy.setKeeper(keeper, {"from": gov})
     # set our management fee to zero so it doesn't mess with our profit checking
