@@ -18,6 +18,9 @@ def test_cloning(
     pid,
     masterchef,
     strategy_name,
+    emission_token,
+    swap_first_step,
+    auto_sell,
 ):
     # Shouldn't be able to call initialize again
     with brownie.reverts():
@@ -28,19 +31,10 @@ def test_cloning(
             keeper,
             pid,
             strategy_name,
-            {"from": gov},
-        )
-
-    # Shouldn't be able use mismatched token and pid
-    wrong_pid = pid + 1
-    with brownie.reverts():
-        strategy.clone0xDAOStaker(
-            vault,
-            strategist,
-            rewards,
-            keeper,
-            wrong_pid,
-            strategy_name,
+            masterchef,
+            emission_token,
+            swap_first_step,
+            auto_sell,
             {"from": gov},
         )
 
@@ -52,6 +46,10 @@ def test_cloning(
         keeper,
         pid,
         strategy_name,
+        masterchef,
+        emission_token,
+        swap_first_step,
+        auto_sell,
         {"from": gov},
     )
     newStrategy = Strategy0xDAOStaker.at(tx.return_value)
@@ -65,6 +63,10 @@ def test_cloning(
             keeper,
             pid,
             strategy_name,
+            masterchef,
+            emission_token,
+            swap_first_step,
+            auto_sell,
             {"from": gov},
         )
 
@@ -77,6 +79,10 @@ def test_cloning(
             keeper,
             pid,
             strategy_name,
+            masterchef,
+            emission_token,
+            swap_first_step,
+            auto_sell,
             {"from": gov},
         )
 

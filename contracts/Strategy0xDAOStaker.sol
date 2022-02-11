@@ -68,16 +68,6 @@ interface ChefLike {
 
     function emergencyWithdraw(uint256 _pid) external;
 
-    function poolInfo(uint256 _pid)
-        external
-        view
-        returns (
-            address lpToken,
-            uint256 allocPoint,
-            uint256 lastRewardTime,
-            uint256 accOXDPerShare
-        );
-
     function userInfo(uint256 _pid, address user)
         external
         view
