@@ -11,9 +11,6 @@ import {
     StrategyParams
 } from "@yearnvaults/contracts/BaseStrategy.sol";
 import {
-    SafeERC20,
-    SafeMath,
-    IERC20,
     Address
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/Math.sol";
@@ -75,9 +72,7 @@ interface ChefLike {
 }
 
 contract Strategy0xDAOStaker is BaseStrategy {
-    using SafeERC20 for IERC20;
     using Address for address;
-    using SafeMath for uint256;
 
     /* ========== STATE VARIABLES ========== */
 
@@ -284,7 +279,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
 
         if (assets >= debt) {
             _debtPayment = _debtOutstanding;
-            _profit = assets - debt;
+            _profit = assets.sub(debt);
 
             amountToFree = _profit.add(_debtPayment);
 
@@ -300,7 +295,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
                         _debtPayment = 0;
                     } else {
                         _debtPayment = Math.min(
-                            newLoose - _profit,
+                            newLoose.sub(_profit),
                             _debtPayment
                         );
                     }
@@ -308,7 +303,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
             }
         } else {
             //serious loss should never happen but if it does lets record it accurately
-            _loss = debt - assets;
+            _loss = debt.sub(assets);
         }
 
         // we're done harvesting, so reset our trigger if we used it
@@ -393,16 +388,22 @@ contract Strategy0xDAOStaker is BaseStrategy {
             masterchef.withdraw(pid, stakedInMasterchef);
         }
 
-        // send our total balance of claimed emissionToken (OXD) to the new strategy
-        emissionToken.safeTransfer(
-            _newStrategy,
-            emissionToken.balanceOf(address(this))
-        );
+        // send our total balance of claimed emissionToken to the new strategy
+        uint256 claimedEmissionToken = emissionToken.balanceOf(address(this));
+        if (claimedEmissionToken > 0) {
+            emissionToken.safeTransfer(
+                _newStrategy,
+                claimedEmissionToken
+            );
+        }    
         // send our total balance of xboo to the new strategy
-        xboo.transfer(
-            _newStrategy,
-            xboo.balanceOf(address(this))
-        );
+        uint256 xbooBalance = xboo.balanceOf(address(this));
+        if (xbooBalance > 0) {
+            xboo.transfer(
+                _newStrategy,
+                xbooBalance
+            );
+        }
     }
 
     ///@notice Only do this if absolutely necessary; as assets will be withdrawn but rewards won't be claimed.
@@ -549,7 +550,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
         uint amountInWithFee = amountIn.mul(997);
         uint numerator = amountInWithFee.mul(reserveOut);
         uint denominator = reserveIn.mul(1000).add(amountInWithFee);
-        amountOut = numerator / denominator;
+        amountOut = numerator.div(denominator);
     }
 
     function protectedTokens()
@@ -599,7 +600,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
     ///@notice This allows us to manually harvest with our keeper as needed
     function setForceHarvestTriggerOnce(bool _forceHarvestTriggerOnce)
         external
-        onlyAuthorized
+        onlyEmergencyAuthorized
     {
         forceHarvestTriggerOnce = _forceHarvestTriggerOnce;
     }
@@ -607,7 +608,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
     ///@notice When our strategy has this much credit, harvestTrigger will be true.
     function setMinHarvestCredit(uint256 _minHarvestCredit)
         external
-        onlyAuthorized
+        onlyEmergencyAuthorized
     {
         minHarvestCredit = _minHarvestCredit;
     }
