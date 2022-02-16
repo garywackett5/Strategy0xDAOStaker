@@ -19,6 +19,9 @@ def test_odds_and_ends(
     amount,
     strategy_name,
     xboo,
+    emission_token,
+    swap_first_step,
+    auto_sell,
 ):
 
     ## deposit to the vault after approving. turn off health check before each harvest since we're doing weird shit
@@ -57,6 +60,10 @@ def test_odds_and_ends(
         vault,
         pid,
         strategy_name,
+        masterchef,
+        emission_token,
+        swap_first_step,
+        auto_sell,
     )
     total_old = strategy.estimatedTotalAssets()
 
@@ -161,6 +168,9 @@ def test_odds_and_ends_migration(
     strategy_name,
     masterchef,
     pid,
+    emission_token,
+    swap_first_step,
+    auto_sell,
 ):
 
     ## deposit to the vault after approving
@@ -177,6 +187,10 @@ def test_odds_and_ends_migration(
         vault,
         pid,
         strategy_name,
+        masterchef,
+        emission_token,
+        swap_first_step,
+        auto_sell,
     )
     total_old = strategy.estimatedTotalAssets()
 

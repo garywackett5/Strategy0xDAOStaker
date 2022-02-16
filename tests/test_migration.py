@@ -15,11 +15,14 @@ def test_migration(
     strategy,
     chain,
     strategist_ms,
-    healthCheck,
+    health_check,
     amount,
     strategy_name,
     masterchef,
     pid,
+    emission_token,
+    swap_first_step,
+    auto_sell,
 ):
 
     ## deposit to the vault after approving
@@ -36,6 +39,10 @@ def test_migration(
         vault,
         pid,
         strategy_name,
+        masterchef,
+        emission_token,
+        swap_first_step,
+        auto_sell,
     )
     total_old = strategy.estimatedTotalAssets()
 
@@ -51,7 +58,7 @@ def test_migration(
 
     # migrate our old strategy
     vault.migrateStrategy(strategy, new_strategy, {"from": gov})
-    new_strategy.setHealthCheck(healthCheck, {"from": gov})
+    new_strategy.setHealthCheck(health_check, {"from": gov})
     new_strategy.setDoHealthCheck(True, {"from": gov})
 
     # assert that our old strategy is empty
