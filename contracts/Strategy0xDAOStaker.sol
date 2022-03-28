@@ -18,58 +18,26 @@ import {
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
-interface ICurveFi {
-    function exchange(
-        int128 from,
-        int128 to,
-        uint256 _from_amount,
-        uint256 _min_to_amount
-    ) external;
+interface IRewardPool {
+    function stake(uint256 _amount) public; // WHAT IS "SUPER"???
 
-    function exchange_underlying(
-        int128 from,
-        int128 to,
-        uint256 _from_amount,
-        uint256 _min_to_amount
-    ) external;
+    function withdraw(uint256 _amount) public; // use amount = 0 for harvesting rewards CANNOT WITHDRAW 0
+
+    function exit() external; // withdraws balanceOf msg.sender and calls getReward
+
+    // function userInfo(uint256 _pid, address user)
+    //     external
+    //     view
+    //     returns (uint256 amount, uint256 rewardDebt);
 }
 
-interface IUniswapV2Router02 {
-    function swapExactTokensForTokens(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        address[] calldata path,
-        address to,
-        uint256 deadline
-    ) external returns (uint256[] memory amounts);
-
-    function getAmountsOut(uint256 amountIn, address[] calldata path)
-        external
-        view
-        returns (uint256[] memory amounts);
+interface IZapbeFTM {
+    function depositNative() external payable;
 }
 
-interface ChefLike {
-    function deposit(uint256 _pid, uint256 _amount) external;
-
-    function withdraw(uint256 _pid, uint256 _amount) external; // use amount = 0 for harvesting rewards
-
-    function emergencyWithdraw(uint256 _pid) external;
-
-    function poolInfo(uint256 _pid)
-        external
-        view
-        returns (
-            address lpToken,
-            uint256 allocPoint,
-            uint256 lastRewardTime,
-            uint256 accOXDPerShare
-        );
-
-    function userInfo(uint256 _pid, address user)
-        external
-        view
-        returns (uint256 amount, uint256 rewardDebt);
+interface IWrappedNative is IERC20 {
+    function deposit() external payable;
+    function withdraw(uint wad) external;
 }
 
 contract Strategy0xDAOStaker is BaseStrategy {
@@ -79,34 +47,25 @@ contract Strategy0xDAOStaker is BaseStrategy {
 
     /* ========== STATE VARIABLES ========== */
 
-    ChefLike public constant masterchef =
-        ChefLike(0xa7821C3e9fC1bF961e280510c471031120716c3d);
-    IERC20 public constant emissionToken =
-        IERC20(0xc165d941481e68696f43EE6E99BFB2B23E0E3114); // the token we receive for staking, 0XD
+    IRewardPool public constant rewardPool =
+        IRewardPool(0xE00D25938671525C2542A689e42D1cfA56De5888);
+    IZapbeFTM public beftmMinter =
+        IZapbeFTM(0x34753f36d69d00e2112Eb99B3F7f0FE76cC35090);
 
-    // swap stuff
-    address internal constant spookyRouter =
-        0xF491e7B69E4244ad4002BC14e878a34207E38c29;
-    ICurveFi internal constant mimPool =
-        ICurveFi(0x2dd7C9371965472E5A5fD28fbE165007c61439E1); // Curve's MIM-USDC-USDT pool
-    ICurveFi internal constant daiPool =
-        ICurveFi(0x27E611FD27b276ACbd5Ffd632E5eAEBEC9761E40); // Curve's USDC-DAI pool
+    // // swap stuff
+    // address internal constant spookyRouter =
+    //     0xF491e7B69E4244ad4002BC14e878a34207E38c29;
+    // ICurveFi internal constant mimPool =
+    //     ICurveFi(0x2dd7C9371965472E5A5fD28fbE165007c61439E1); // Curve's MIM-USDC-USDT pool
+    // ICurveFi internal constant daiPool =
+    //     ICurveFi(0x27E611FD27b276ACbd5Ffd632E5eAEBEC9761E40); // Curve's USDC-DAI pool
 
     // tokens
     IERC20 internal constant wftm =
         IERC20(0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83);
-    IERC20 internal constant weth =
-        IERC20(0x74b23882a30290451A17c44f4F05243b6b58C76d);
-    IERC20 internal constant wbtc =
-        IERC20(0x321162Cd933E2Be498Cd2267a90534A804051b11);
-    IERC20 internal constant dai =
-        IERC20(0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E);
-    IERC20 internal constant usdc =
-        IERC20(0x04068DA6C83AFCFA0e13ba15A6696662335D5B75);
-    IERC20 internal constant mim =
-        IERC20(0x82f0B8B456c1A451378467398982d4834b6829c1);
+    IERC20 internal constant beftm =
+        IERC20(0x7381eD41F6dE418DdE5e84B55590422a57917886);
 
-    uint256 public pid; // the pool ID we are staking for
 
     string internal stratName; // we use this for our strategy's name on cloning
     bool internal isOriginal = true;
@@ -211,14 +170,14 @@ contract Strategy0xDAOStaker is BaseStrategy {
         return stratName;
     }
 
+    // want = beftm
     function balanceOfWant() public view returns (uint256) {
         return want.balanceOf(address(this));
     }
 
+    // taked = beftm
     function balanceOfStaked() public view returns (uint256) {
-        (uint256 stakedInMasterchef, ) =
-            masterchef.userInfo(pid, address(this));
-        return stakedInMasterchef;
+        return rewardPool.balanceOf(address(this))
     }
 
     function estimatedTotalAssets() public view override returns (uint256) {
@@ -238,13 +197,13 @@ contract Strategy0xDAOStaker is BaseStrategy {
         )
     {
         // claim our rewards
-        masterchef.withdraw(pid, 0);
+        rewardPool.getReward();
 
-        // if we have emissionToken to sell, then sell some of it
-        uint256 emissionTokenBalance = emissionToken.balanceOf(address(this));
-        if (emissionTokenBalance > 0) {
+        // if we have wftm to sell, then sell some of it
+        uint256 wftmBalance = wftm.balanceOf(address(this));
+        if (wftmBalance > 0) {
             // sell our emissionToken
-            _sell(emissionTokenBalance);
+            _sell(wftmBalance);
         }
 
         uint256 assets = estimatedTotalAssets();
@@ -253,11 +212,11 @@ contract Strategy0xDAOStaker is BaseStrategy {
         uint256 debt = vault.strategies(address(this)).totalDebt;
         uint256 amountToFree;
 
-        // this would only happen if the masterchef somehow lost funds or was drained
-        uint256 masterchefHoldings = want.balanceOf(address(masterchef));
+        // this would only happen if the rewardPool somehow lost funds or was drained
+        uint256 rewardPoolHoldings = want.balanceOf(address(rewardPool));
         uint256 stakedBalance = balanceOfStaked();
-        if (masterchefHoldings < stakedBalance) {
-            amountToFree = masterchefHoldings;
+        if (rewardPoolHoldings < stakedBalance) {
+            amountToFree = rewardPoolHoldings;
             liquidatePosition(amountToFree);
             _debtPayment = balanceOfWant();
             _loss = stakedBalance.sub(_debtPayment);
@@ -305,7 +264,7 @@ contract Strategy0xDAOStaker is BaseStrategy {
         uint256 toInvest = balanceOfWant();
         // stake only if we have something to stake
         if (toInvest > 0) {
-            masterchef.deposit(pid, toInvest);
+            rewardPool.stake(toInvest);
         }
     }
 
@@ -314,17 +273,25 @@ contract Strategy0xDAOStaker is BaseStrategy {
         override
         returns (uint256 _liquidatedAmount, uint256 _loss)
     {
-        uint256 totalAssets = want.balanceOf(address(this));
-        if (_amountNeeded > totalAssets) {
-            uint256 amountToFree = _amountNeeded.sub(totalAssets);
+        // if we have loose wftm. liquidate it
+        uint256 wftmBalance = wftm.balanceOf(address(this));
+        if (wftmBalance > 0) {
+            // sell our wftm
+            _sell(wftmBalance);
+        }
 
-            (uint256 deposited, ) =
-                ChefLike(masterchef).userInfo(pid, address(this));
+        uint256 beftmBalance = want.balanceOf(address(this));
+
+        // if we need more beftm than is already loose in the contract
+        if (beftmBalance < _amountNeeded) {
+            uint256 amountToFree = _amountNeeded.sub(beftmBalance);
+
+            uint256 deposited = IRewardPool(rewardPool).balanceOf(address(this));
             if (deposited < amountToFree) {
                 amountToFree = deposited;
             }
             if (deposited > 0) {
-                ChefLike(masterchef).withdraw(pid, amountToFree);
+                IRewardPool(rewardPool).withdraw(amountToFree);
             }
 
             _liquidatedAmount = want.balanceOf(address(this));
@@ -334,99 +301,46 @@ contract Strategy0xDAOStaker is BaseStrategy {
     }
 
     function liquidateAllPositions() internal override returns (uint256) {
-        uint256 stakedBalance = balanceOfStaked();
-        if (stakedBalance > 0) {
-            masterchef.withdraw(pid, stakedBalance);
-        }
+        rewardPool.exit();
+
+        _sell(wftm.balanceOf(address(this)));
+
         return balanceOfWant();
     }
 
     function prepareMigration(address _newStrategy) internal override {
         uint256 stakedBalance = balanceOfStaked();
         if (stakedBalance > 0) {
-            masterchef.withdraw(pid, stakedBalance);
+            rewardPool.withdraw(stakedBalance);
         }
 
-        // send our claimed emissionToken to the new strategy
-        emissionToken.safeTransfer(
+        // send our claimed wftm to the new strategy
+        wftm.safeTransfer(
             _newStrategy,
-            emissionToken.balanceOf(address(this))
+            wftm.balanceOf(address(this))
         );
     }
-
-    ///@notice Only do this if absolutely necessary; as assets will be withdrawn but rewards won't be claimed.
+    
+    // FUNCTION EXIT() INSTEAD??? STILL CALLS GETREWARD
+    // @notice Only do this if absolutely necessary; as assets will be withdrawn but rewards won't be claimed.
     function emergencyWithdraw() external onlyEmergencyAuthorized {
-        masterchef.emergencyWithdraw(pid);
+        rewardPool.exit();
     }
 
-    // sell from reward token to want
+    function manualWithdraw(uint256 amount) external onlyEmergencyAuthorized {
+        rewardPool.withdraw(amount);
+    }
+
+    function manualSell(uint256 _amount) external onlyEmergencyAuthorized {
+        _sell(_amount);
+    }
+
+    // sell from reward token (wftm) to want
     function _sell(uint256 _amount) internal {
-        // sell our emission token for usdc
-        address[] memory emissionTokenPath = new address[](2);
-        emissionTokenPath[0] = address(emissionToken);
-        emissionTokenPath[1] = address(usdc);
-
-        IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(
-            _amount,
-            uint256(0),
-            emissionTokenPath,
-            address(this),
-            block.timestamp
-        );
-
-        if (address(want) == address(usdc)) {
-            return;
-        }
-
-        // sell our USDC for want
-        uint256 usdcBalance = usdc.balanceOf(address(this));
-        if (address(want) == address(wftm)) {
-            // sell our usdc for want with spooky
-            address[] memory usdcSwapPath = new address[](2);
-            usdcSwapPath[0] = address(usdc);
-            usdcSwapPath[1] = address(want);
-
-            IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(
-                usdcBalance,
-                uint256(0),
-                usdcSwapPath,
-                address(this),
-                block.timestamp
-            );
-        } else if (address(want) == address(weth)) {
-            // sell our usdc for want with spooky
-            address[] memory usdcSwapPath = new address[](3);
-            usdcSwapPath[0] = address(usdc);
-            usdcSwapPath[1] = address(wftm);
-            usdcSwapPath[2] = address(weth);
-
-            IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(
-                usdcBalance,
-                uint256(0),
-                usdcSwapPath,
-                address(this),
-                block.timestamp
-            );
-        } else if (address(want) == address(dai)) {
-            // sell our usdc for want with curve
-            daiPool.exchange_underlying(1, 0, usdcBalance, 0);
-        } else if (address(want) == address(mim)) {
-            // sell our usdc for want with curve
-            mimPool.exchange(2, 0, usdcBalance, 0);
-        } else if (address(want) == address(wbtc)) {
-            // sell our usdc for want with spooky
-            address[] memory usdcSwapPath = new address[](3);
-            usdcSwapPath[0] = address(usdc);
-            usdcSwapPath[1] = address(wftm);
-            usdcSwapPath[2] = address(wbtc);
-
-            IUniswapV2Router02(spookyRouter).swapExactTokensForTokens(
-                usdcBalance,
-                uint256(0),
-                usdcSwapPath,
-                address(this),
-                block.timestamp
-            );
+        // unwrap our wftm
+        wftm.withdraw(_amount);
+        // swap ftm for beftm
+        beftmMinter.depositNative(_amount);
         }
     }
 
